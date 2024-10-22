@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  ARCHIVE
+  OTHER
+}
+
+model Media {
+  id        Int      @id @default(autoincrement())
+  name      String
+  extension String
+  type      MediaType
+  size      Float?
+  location  String?
+  path      String
+  meta      Json?    @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt DateTime? @db.Timestamptz()
+  creator   User?    @relation(fields: [creatorId], references: [id])
+  creatorId Int?
+
+  postMusic Post[] @relation("PostMusic")
+
+  post                 Post?                 @relation(fields: [postId], references: [id])
+  postId               Int?
+
+  reel           Reel? 
+
+  story Story?
+
+  @@unique([creatorId])
+
+}
+
+enum AccountPrivacyType {
+  PUBLIC
+  PRIVATE
+}
+
+model User {
+  id             Int        @id @default(autoincrement())
+  username       String     @unique
+  email          String     @unique
+  password       String
+  firstName      String
+  lastName       String
+  fullName       String?
+  gender         GenderType?
+  bio            String?
+  profile        Media?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?  @db.Timestamptz()
+
+  // Followers and Following relationships
+  followers      UserFollow[] @relation("UserFollowers")
+  following      UserFollow[] @relation("UserFollowing")
+
+  posts          Post[]
+  stories        Story[]
+  reels          Reel[]
+
+  savedPosts     SavedPost[]
+
+  accountPrivacy AccountPrivacyType? @default(PUBLIC)
+
+  polls          Poll[]     @relation("UserPolls")
+}
+
+
+model Story {
+  id          Int        @id @default(autoincrement())
+  content     String?    // Content of the story, e.g., text, image, video URL
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?  @db.Timestamptz()
+  creatorId   Int        // Reference to the user who created the story
+  creator     User       @relation(fields: [creatorId], references: [id])
+
+  privacyType AccountPrivacyType? @default(PUBLIC)
+
+  mediaId     Int        // Reference to media for the story
+  media       Media      @relation(fields: [mediaId], references: [id])
+
+  @@unique([mediaId], name: "Unique_MediaId")
+}
+
+model Reel {
+  id          Int        @id @default(autoincrement())
+  content     String?    // Content of the reel, e.g., video URL
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?  @db.Timestamptz()
+  creatorId   Int        // Reference to the user who created the reel
+  creator     User       @relation(fields: [creatorId], references: [id])
+  privacyType AccountPrivacyType? @default(PUBLIC)
+
+  media            Media?               @relation(fields: [mediaId], references: [id])
+  mediaId          Int?
+
+  @@unique([mediaId], name: "Unique_MediaId")
+}
+
+model UserFollow {
+  id             Int  @id @default(autoincrement())
+  followerId     Int  // User who is following
+  followingId    Int  // User who is being followed
+
+  follower       User @relation("UserFollowers", fields: [followerId], references: [id])
+  following      User @relation("UserFollowing", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId]) // Ensure a unique relationship
+}
+
+enum AudienceType {
+  EVERYONE
+  FRIENDS
+}
+
+enum PostPrivacyType {
+  SAVED
+  ARCHIVE
+}
+
+enum PostFeedType {
+  ONFEED
+  ARCHIVED
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  caption     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? @db.Timestamptz()
+
+  media       Media []
+
+  location    String?
+  musicId     Int?     // Foreign key for music media
+  music       Media?   @relation("PostMusic", fields: [musicId], references: [id])
+  audience    AudienceType?
+  creator     User     @relation(fields: [creatorId], references: [id])
+  creatorId   Int
+  privacyType PostPrivacyType?
+  feedType    PostFeedType? @default(ONFEED)
+
+  poll        Poll[] @relation("PollPost")
+
+  savedPosts   SavedPost[]  @relation("PostSavedPosts")
+
+}
+
+model SavedPost {
+  id              Int     @id @default(autoincrement())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?  @db.Timestamptz()
+
+  savedByUserId   Int     // Reference to the user who saved the post
+  savedByUser     User    @relation(fields: [savedByUserId], references: [id])
+
+  postId          Int     // Reference to the post that is saved
+  post            Post    @relation("PostSavedPosts", fields: [postId], references: [id])
+
+  @@unique([savedByUserId, postId]) // Ensure a user can save the same post only once
+}
+
+model Poll {
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime? @db.Timestamptz()
+
+  question      String
+  options       String[]
+
+  postId        Int      // Add postId field to reference the Post model
+  post          Post     @relation("PollPost", fields: [postId], references: [id]) // Unique relation name
+
+  pollCreatorId Int      // Reference to the User who created this poll
+  pollCreator   User     @relation("UserPolls", fields: [pollCreatorId], references: [id])
+}
