@@ -22,15 +22,24 @@
     "db:generate": "npx prisma generate",
     "db:deploy": "npx prisma migrate deploy",
     "prisma:format": "npx prisma format"
-    
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
-    "@nestjs/core": "^10.0.0",
+    "@nestjs/core": "^10.4.5",
+    "@nestjs/event-emitter": "^2.1.1",
     "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/platform-socket.io": "^10.4.5",
+    "@nestjs/swagger": "^7.4.2",
     "@prisma/client": "^5.21.1",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "moment": "^2.30.1",
+    "moment-timezone": "^0.5.46",
+    "morgan": "^1.10.0",
+    "nestjs-translator": "^0.0.7",
     "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
