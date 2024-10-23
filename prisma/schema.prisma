@@ -7,6 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum DeviceType {
+  WEB
+  ANDROID
+  IOS
+}
+
 enum UserType {
   USER
   ADMIN
@@ -42,6 +48,7 @@ model Media {
   deletedAt DateTime? @db.Timestamptz()
   creator   User?     @relation(fields: [creatorId], references: [id])
   creatorId Int?
+  driveId String
 
   postMusic Post[] @relation("PostMusic")
 
@@ -60,18 +67,12 @@ enum AccountPrivacyType {
   PRIVATE
 }
 
-// enum DeviceType {
-//   WEB
-//   ANDROID
-//   IOS
-// }
-
 model Device {
   id        Int       @id @default(autoincrement())
   userId    Int
   authToken String
   fcmToken  String?
-  // type      DeviceType @default(ANDROID)
+  type      DeviceType @default(ANDROID)
   user      User      @relation(fields: [userId], references: [id])
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()

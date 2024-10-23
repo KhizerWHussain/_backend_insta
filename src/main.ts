@@ -1,10 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import AppConfig from './configs/app.config';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { VersioningType } from '@nestjs/common';
-import { InjectInterceptors, InjectLogger, InjectPipes, InjectSwagger } from './core/injectors';
+import { Logger, VersioningType } from '@nestjs/common';
+import { InjectPipes, InjectSwagger } from './core/injectors';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -12,16 +11,14 @@ async function bootstrap() {
     cors: true,
   });
 
-  app.useWebSocketAdapter(new IoAdapter(app));
-  app.enableVersioning({ type: VersioningType.URI });
+  app.setGlobalPrefix('/api/v1');
+  // app.enableVersioning({ type: VersioningType.URI });
   app.set('trust proxy', 1);
-  
+
   InjectPipes(app);
-  InjectInterceptors(app);
-  InjectLogger(app);
   InjectSwagger(app);
 
   await app.listen(AppConfig.APP.PORT || 3000);
-
+  Logger.log(`Server running on http://localhost:${AppConfig.APP.PORT}/api/v1`);
 }
 bootstrap();

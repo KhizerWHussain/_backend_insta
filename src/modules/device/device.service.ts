@@ -1,86 +1,78 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { MessageResponseDTO } from 'core/response/response.schema';
-import DatabaseService from 'database/database.service';
-import { GenerateUUID } from 'helpers/util.helper';
+import { MessageResponseDTO } from '../../core/response/response.schema';
+import DatabaseService from '../../database/database.service';
 import CreateDeviceRequestDTO from './dto/request/create.request';
 import CreateDeviceResponseDTO from './dto/response/create.response';
 
 @Injectable()
 export default class DeviceService {
-    constructor(private _dbService: DatabaseService) {}
+  constructor(private _dbService: DatabaseService) {}
 
-    async Create(data: CreateDeviceRequestDTO): Promise<CreateDeviceResponseDTO> {
-        return await this._dbService.device.create({
-            data: {
-                type: data.type,
-                userId: data.userId,
-                authToken: data.authToken,
-                fcmToken: data?.fcmToken,
-            },
-        });
+  async Create(data: CreateDeviceRequestDTO): Promise<CreateDeviceResponseDTO> {
+    return await this._dbService.device.create({
+      data: {
+        type: data.type,
+        userId: data.userId,
+        authToken: data.authToken,
+        fcmToken: data.fcmToken,
+      },
+    });
+  }
+
+  async FindById(id: number): Promise<CreateDeviceResponseDTO> {
+    const device = await this._dbService.device.findFirst({ where: { id } });
+    if (!device) {
+      throw new NotFoundException('user.device_not_found');
+    }
+    return device;
+  }
+
+  async UpdateFCMToken(
+    authToken: string,
+    fcmToken: string,
+  ): Promise<MessageResponseDTO> {
+    const device = await this._dbService.device.findFirst({
+      where: { authToken },
+    });
+
+    if (!device) {
+      throw new NotFoundException('User device not found');
     }
 
-    async FindById(id: number): Promise<CreateDeviceResponseDTO> {
-        return await this._dbService.device.findFirst({ where: { id } });
+    await this._dbService.device.update({
+      where: { id: device.id },
+      data: { fcmToken },
+    });
+
+    return { message: 'Success' };
+  }
+
+  async Delete(authToken: string): Promise<MessageResponseDTO> {
+    const device = await this._dbService.device.findFirst({
+      where: { authToken },
+      select: { id: true },
+    });
+
+    if (!device) {
+      throw new NotFoundException('User device not found');
     }
 
-    async UpdateFCMToken(authToken: string, fcmToken: string): Promise<MessageResponseDTO> {
-        const device = await this._dbService.device.findFirst({
-            where: {
-                authToken,
-            },
-        });
+    await this._dbService.device.delete({
+      where: { id: device.id },
+    });
 
-        if (!device) {
-            throw new NotFoundException('user.device_not_found');
-        }
+    return { message: 'Success' };
+  }
 
-        await this._dbService.device.update({
-            where: {
-                id: device.id,
-            },
-            data: {
-                fcmToken,
-            },
-        });
+  async DeleteAll(userId: number): Promise<MessageResponseDTO> {
+    const result = await this._dbService.device.deleteMany({
+      where: { userId },
+    });
 
-        return {
-            message: 'Success',
-        };
+    if (result.count === 0) {
+      throw new NotFoundException('User device not found');
     }
 
-    async Delete(authToken: string): Promise<MessageResponseDTO> {
-        const device = await this._dbService.device.findFirst({
-            where: {
-                authToken,
-            },
-            select: { id: true },
-        });
-
-        if (!device) {
-            throw new NotFoundException('user.device_not_found');
-        }
-
-        await this._dbService.device.delete({
-            where: { id: device.id },
-        });
-
-        return { message: 'Success' };
-    }
-
-    async DeleteAll(userId: number): Promise<MessageResponseDTO> {
-        const device = await this._dbService.device.findFirst({
-            where: { userId },
-        });
-
-        if (!device) {
-            throw new NotFoundException('user.device_not_found');
-        }
-
-        await this._dbService.device.deleteMany({
-            where: { userId },
-        });
-
-        return { message: 'Success' };
-    }
+    return { message: 'Success' };
+  }
 }

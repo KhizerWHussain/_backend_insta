@@ -10,10 +10,10 @@ const AppConfig = {
   DATABASE: {
     URL: process.env.DATABASE_URL,
   },
-  REDIS: {
-    HOST: process.env.APP_REDIS_HOST,
-    PORT: Number(process.env.APP_REDIS_PORT),
-  },
+  // REDIS: {
+  //   HOST: process.env.APP_REDIS_HOST,
+  //   PORT: Number(process.env.APP_REDIS_PORT),
+  // },
 };
 
 export default AppConfig;
