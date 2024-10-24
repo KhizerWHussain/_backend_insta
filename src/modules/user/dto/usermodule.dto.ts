@@ -99,3 +99,19 @@ export class SignupRequestDTO {
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true }) // Transform string to number
   profileMediaId?: number;
 }
+
+export class SigninRequestDTO {
+  @ApiProperty({ description: 'userNameOrEmail' })
+  @IsString()
+  userNameOrEmail: string;
+
+  @ApiProperty({ description: 'Password' })
+  @Length(1, 255)
+  password: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  fcmToken: string;
+}

@@ -1,8 +1,16 @@
-import { Controller, Get, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Param, Delete, Headers } from '@nestjs/common';
 import { UserService } from './user.service';
-import { ApiController, Post } from 'src/core/decorators';
+import {
+  ApiController,
+  Authorized,
+  CurrentUser,
+  Get,
+  Patch,
+  Post,
+} from 'src/core/decorators';
 import { APIResponseDTO } from 'src/core/response/response.schema';
-import { SignupRequestDTO } from './dto/usermodule.dto';
+import { SigninRequestDTO, SignupRequestDTO } from './dto/usermodule.dto';
+import { User } from '@prisma/client';
 
 @ApiController({
   path: '/user',
@@ -21,15 +29,47 @@ export default class UserController {
     return this._userService.userSignup(payload);
   }
 
-  @Get()
-  findAll() {
-    return this._userService.findAll();
+  @Post({
+    path: '/signin',
+    description: 'log in user',
+    response: APIResponseDTO,
+  })
+  login(@Body() payload: SigninRequestDTO) {
+    return this._userService.userSignin(payload);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this._userService.findOne(+id);
+  @Authorized()
+  @Get({
+    path: '/getMyData',
+    description: 'Get current user details',
+    response: APIResponseDTO,
+  })
+  getMe(
+    @CurrentUser() user: User,
+    @Headers() headers: any,
+  ): Promise<APIResponseDTO> {
+    return this._userService.getCurrentUserData(user, headers);
   }
+
+  @Authorized()
+  @Patch({
+    path: '/updateProfilePrivacy',
+    description: 'updating user profile privacy',
+    response: APIResponseDTO,
+  })
+  updateProfilePrivacy(@CurrentUser() user: User): Promise<APIResponseDTO> {
+    return this._userService.getCurrentUserData(user, headers);
+  }
+
+  // @Get()
+  // findAll() {
+  //   return this._userService.findAll();
+  // }
+
+  // @Get(':id')
+  // findOne(@Param('id') id: string) {
+  //   return this._userService.findOne(+id);
+  // }
 
   // @Patch(':id')
   // update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {

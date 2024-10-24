@@ -1,38 +1,54 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserType } from '@prisma/client';
-import AuthService, { AuthModel } from './auth.service';
+import AuthService, { AuthModel } from './auth.service'; // Import AuthService to validate the token
 
 @Injectable()
 export default class AuthGuard implements CanActivate {
-    constructor(private _reflector: Reflector, private _authService: AuthService) {}
+  constructor(
+    private _reflector: Reflector,
+    private _authService: AuthService,
+  ) {}
 
-    async canActivate(context: ExecutionContext): Promise<boolean> {
-        const request = context.switchToHttp().getRequest();
-        const requiredAuthorization = this._reflector.get<string[]>(
-            'authorization',
-            context.getHandler(),
-        );
-        const roles = this._reflector.get<UserType[]>('roles', context.getHandler());
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
 
-        if (requiredAuthorization) {
-            const token = request.headers['authorization'];
-            if (!token) {
-                throw new UnauthorizedException();
-            }
+    // Extract authorization metadata from the route handler
+    const requiredAuthorization = this._reflector.get<boolean>(
+      'authorization',
+      context.getHandler(),
+    );
+    const roles = this._reflector.get<UserType[]>(
+      'roles',
+      context.getHandler(),
+    );
 
-            let auth: AuthModel = await this._authService.GetSession(token);
-            if (
-                !auth ||
-                (auth && !auth.user) ||
-                (roles.length && !roles.includes(auth?.user?.type))
-            ) {
-                throw new UnauthorizedException();
-            }
+    if (requiredAuthorization) {
+      const token = request.headers['authorization']; // Get the token from headers
+      if (!token) {
+        throw new UnauthorizedException('Token not provided');
+      }
 
-            request.user = auth.user;
-        }
+      // Validate the token and get the user session
+      let auth: AuthModel = await this._authService.GetSession(token);
+      if (!auth || !auth.user) {
+        throw new UnauthorizedException('Invalid token or user session');
+      }
 
-        return true;
+      // Check if user has the required role
+      if (roles?.length && !roles.includes(auth.user.type)) {
+        throw new UnauthorizedException('User does not have the required role');
+      }
+
+      // Attach the user to the request object for further use
+      request.user = auth.user;
     }
+
+    return true;
+  }
 }

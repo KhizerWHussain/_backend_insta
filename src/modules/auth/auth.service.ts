@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { v5 as uuid } from 'uuid';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { v4 as uuid } from 'uuid';
 import DatabaseService from '../../database/database.service';
 import { DeviceType, User } from '@prisma/client';
-import AppConfig from '../../configs/app.config';
+// import AppConfig from '../../configs/app.config';
 import DeviceService from '../device/device.service';
 
 export class AuthModel {
@@ -34,10 +34,10 @@ export default class AuthService {
     type: DeviceType = 'ANDROID',
   ): Promise<string> {
     const Token = this._generateToken();
-    const Auth = new AuthModel(userId);
+    // const Auth = new AuthModel(userId);
     const currentUserDevice = await this._databaseService.device.findFirst({
       where: { userId: userId },
-      select: { fcmToken: true, id: true, authToken: true },
+      select: { id: true, authToken: true },
     });
     if (currentUserDevice) {
       await this.DestroySession(currentUserDevice.authToken);
@@ -50,13 +50,26 @@ export default class AuthService {
     });
     return Token;
   }
-
   async GetSession(token: string): Promise<AuthModel> {
-    //   const deviceSession  = await this._deviceService.
-    return {
-      id: 0,
-      user: null,
-    };
+    const deviceSession = await this._databaseService.device.findFirst({
+      where: { authToken: token, deletedAt: null },
+      select: { userId: true },
+    });
+
+    if (!deviceSession) {
+      throw new UnauthorizedException('Session not found');
+    }
+
+    const user = await this._databaseService.user.findFirst({
+      where: { id: deviceSession.userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const auth: AuthModel = { id: user.id, user: user };
+    return auth;
   }
 
   async DestroySession(token: string) {

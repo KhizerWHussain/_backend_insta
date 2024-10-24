@@ -1,12 +1,12 @@
 import { MediaService } from './media.service';
-import { ApiController, Post } from 'src/core/decorators';
+import { ApiController, Delete, Get, Post } from 'src/core/decorators';
 import {
-  Delete,
   Put,
   Param,
   UseInterceptors,
   UploadedFile,
   Body,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
@@ -36,9 +36,37 @@ export class MediaController {
     return this._mediaService.uploadFile(file, fileType, Number(userId));
   }
 
-  @Delete(':fileId')
-  async deleteFile(@Param('fileId') fileId: string) {
-    return this._mediaService.deleteFile(fileId);
+  @Delete({
+    path: '/delete/:driveId/:mediaId',
+    description: 'deleting media on google drive',
+    response: APIResponseDTO,
+  })
+  async deleteFile(
+    @Param('driveId') driveId: string,
+    @Param('mediaId') mediaId: string,
+  ) {
+    return this._mediaService.deleteFile(driveId, Number(mediaId));
+  }
+
+  @Get({
+    path: '/getAll',
+    description: 'get all media from google drive & postgresql',
+    response: APIResponseDTO,
+  })
+  async getAllMedia(@Query('userId') userId?: string) {
+    return this._mediaService.findAllMedia(Number(userId));
+  }
+
+  @Get({
+    path: '/singleMedia',
+    description: 'get all media from google drive & postgresql',
+    response: APIResponseDTO,
+  })
+  async getSingleMedia(
+    @Query('mediaId') mediaId: string,
+    @Query('driveId') driveId?: string,
+  ) {
+    return this._mediaService.getSingleMedia(Number(mediaId), driveId);
   }
 
   @Put(':fileId/update')

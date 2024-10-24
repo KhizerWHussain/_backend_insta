@@ -124,6 +124,8 @@ model Story {
 
   privacyType AccountPrivacyType? @default(PUBLIC)
 
+  likedByMe  Boolean?
+
   mediaId Int // Reference to media for the story
   media   Media @relation(fields: [mediaId], references: [id])
 
@@ -139,6 +141,8 @@ model Reel {
   creatorId   Int // Reference to the user who created the reel
   creator     User                @relation(fields: [creatorId], references: [id])
   privacyType AccountPrivacyType? @default(PUBLIC)
+
+  likedByMe  Boolean?
 
   media   Media? @relation(fields: [mediaId], references: [id])
   mediaId Int?
@@ -189,6 +193,8 @@ model Post {
   creatorId   Int
   privacyType PostPrivacyType?
   feedType    PostFeedType?    @default(ONFEED)
+
+  likedByMe  Boolean?
 
   poll Poll[] @relation("PollPost")
 
