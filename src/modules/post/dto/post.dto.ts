@@ -10,6 +10,7 @@ import {
   IsNotEmpty,
   MaxLength,
   ArrayMaxSize,
+  IsNumber,
 } from 'class-validator';
 
 export class createPollDTO {
@@ -125,4 +126,22 @@ export class UpdatePostDto {
   @IsOptional()
   @IsEnum(PostFeedType)
   feedType?: PostFeedType;
+}
+
+export class UpdatePostFeedTypeDto {
+  @ApiProperty({
+    description: 'post feed type',
+    required: true,
+    enum: PostFeedType,
+  })
+  @IsNotEmpty()
+  @IsEnum(PostFeedType)
+  feedType: PostFeedType;
+
+  @ApiProperty({
+    description: 'postId',
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  postId: number;
 }

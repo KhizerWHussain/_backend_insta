@@ -54,7 +54,7 @@ export default class UserController {
   @Authorized()
   @Patch({
     path: '/updateProfilePrivacy',
-    description: 'updating user profile privacy',
+    description: 'updating (toggle) user profile privacy',
     response: APIResponseDTO,
   })
   updateProfilePrivacy(@CurrentUser() user: User): Promise<APIResponseDTO> {

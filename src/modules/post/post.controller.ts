@@ -1,6 +1,10 @@
 import { Controller, Body, Param } from '@nestjs/common';
 import { PostService } from './post.service';
-import { CreatePostDto, UpdatePostDto } from './dto/post.dto';
+import {
+  CreatePostDto,
+  UpdatePostDto,
+  UpdatePostFeedTypeDto,
+} from './dto/post.dto';
 import {
   Authorized,
   CurrentUser,
@@ -8,6 +12,7 @@ import {
   Get,
   Patch,
   Post,
+  Put,
 } from 'src/core/decorators';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { User } from '@prisma/client';
@@ -64,6 +69,29 @@ export class PostController {
     @Body() payload: UpdatePostDto,
   ): Promise<APIResponseDTO> {
     return this._postService.updatePost(user, postId, payload);
+  }
+
+  @Authorized()
+  @Put({
+    path: '/update/feedType',
+    description: 'toggle update post feed type',
+    response: APIResponseDTO,
+  })
+  updatePostFeedType(
+    @CurrentUser() user: User,
+    @Body() payload: UpdatePostFeedTypeDto,
+  ) {
+    return this._postService.updatePostFeedType(user, payload);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/getArchived',
+    description: 'get my archived posts',
+    response: APIResponseDTO,
+  })
+  getAllMyArchivedPosts(@CurrentUser() user: User) {
+    return this._postService.getAllMyArchivedPosts(user);
   }
 
   // @Get()

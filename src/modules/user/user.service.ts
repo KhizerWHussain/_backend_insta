@@ -165,17 +165,37 @@ export class UserService {
 
   async updateUserProfilePolicy(user: User): Promise<APIResponseDTO> {
     const findUser = await this._dbService.user.findUnique({
-      where: { id: user.id },
+      where: { id: user.id, deletedAt: null },
     });
 
     if (!findUser) {
       throw new BadRequestException('user donot exist');
     }
 
+    await this._dbService.user.update({
+      where: { id: findUser.id },
+      data: {
+        accountPrivacy:
+          findUser.accountPrivacy === 'PRIVATE'
+            ? 'PUBLIC'
+            : findUser.accountPrivacy === 'PUBLIC'
+              ? 'PRIVATE'
+              : 'PUBLIC',
+        updatedAt: new Date(),
+      },
+    });
+
+    const userAfterUpdation = await this._dbService.user.findUnique({
+      where: { id: findUser.id },
+      select: {
+        accountPrivacy: true,
+      },
+    });
+
     return {
       status: true,
-      message: 'privacy updated sucessfully',
-      data: true,
+      message: `user account policy is ${userAfterUpdation.accountPrivacy}`,
+      data: userAfterUpdation,
     };
   }
 

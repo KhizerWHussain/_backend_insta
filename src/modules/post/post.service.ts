@@ -1,6 +1,10 @@
 import { User } from '@prisma/client';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreatePostDto, UpdatePostDto } from './dto/post.dto';
+import {
+  CreatePostDto,
+  UpdatePostDto,
+  UpdatePostFeedTypeDto,
+} from './dto/post.dto';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
 
@@ -197,6 +201,90 @@ export class PostService {
       status: true,
       message: 'post has been updated successfully',
       data: findPost,
+    };
+  }
+
+  async updatePostFeedType(
+    user: User,
+    payload: UpdatePostFeedTypeDto,
+  ): Promise<APIResponseDTO> {
+    const { feedType, postId } = payload;
+
+    const findPost = await this._dbService.post.findUnique({
+      where: { id: postId, creatorId: user.id, deletedAt: null },
+    });
+
+    if (!findPost) {
+      throw new BadRequestException('post donot exist or is not yours');
+    }
+
+    await this._dbService.$transaction(async (prisma) => {
+      await prisma.post.update({
+        where: { id: findPost.id },
+        data: {
+          feedType: feedType,
+          updatedAt: new Date(),
+        },
+      });
+    });
+
+    return {
+      status: true,
+      message: 'post feedType updated successfull',
+      data: null,
+    };
+  }
+
+  async getAllMyArchivedPosts(user: User): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const findArchivedPosts = await this._dbService.post.findMany({
+      where: { creatorId: user.id, feedType: 'ARCHIVED', deletedAt: null },
+      select: {
+        id: true,
+        caption: true,
+        likedByCreator: true,
+        updatedAt: true,
+        location: true,
+        media: {
+          select: {
+            extension: true,
+            driveId: true,
+            path: true,
+            id: true,
+            name: true,
+            meta: true,
+            size: true,
+          },
+          where: { deletedAt: null },
+        },
+        _count: {
+          select: {
+            poll: true,
+            media: true,
+          },
+        },
+        createdAt: true,
+      },
+    });
+
+    if (!findArchivedPosts.length) {
+      return {
+        status: true,
+        message: 'no archived post found',
+        data: null,
+      };
+    }
+    return {
+      status: true,
+      message: 'archived posts found successfully',
+      data: findArchivedPosts,
     };
   }
 
