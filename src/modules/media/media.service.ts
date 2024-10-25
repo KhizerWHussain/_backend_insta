@@ -27,7 +27,7 @@ export class MediaService {
   async uploadFile(
     mediaFile: any,
     fileType: MediaType,
-    userId: number,
+    userId?: number,
   ): Promise<APIResponseDTO> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     const { originalname, fieldname, encoding, mimetype, buffer } = mediaFile;
@@ -75,6 +75,7 @@ export class MediaService {
           extension: fileExtension,
           driveId: file.data.id,
           size: Number(fileData.size),
+          creator: userId && { connect: { id: userId } },
         },
       });
 

@@ -58,7 +58,7 @@ export default class UserController {
     response: APIResponseDTO,
   })
   updateProfilePrivacy(@CurrentUser() user: User): Promise<APIResponseDTO> {
-    return this._userService.getCurrentUserData(user, headers);
+    return this._userService.updateUserProfilePolicy(user);
   }
 
   // @Get()

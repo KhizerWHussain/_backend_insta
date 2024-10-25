@@ -5,6 +5,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD } from '@nestjs/core';
 import { UserModule } from './modules/user/user.module';
 import { MediaModule } from './modules/media/media.module';
+import { PostModule } from './modules/post/post.module';
 import AuthGuard from './modules/auth/auth.guard';
 import DeviceModule from './modules/device/device.module';
 import AuthModule from './modules/auth/auth.module';
@@ -16,6 +17,7 @@ import AuthModule from './modules/auth/auth.module';
     AuthModule,
     UserModule,
     MediaModule,
+    PostModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AuthGuard }],

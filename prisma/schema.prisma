@@ -124,7 +124,7 @@ model Story {
 
   privacyType AccountPrivacyType? @default(PUBLIC)
 
-  likedByMe  Boolean?
+  likedByCreator  Boolean?
 
   mediaId Int // Reference to media for the story
   media   Media @relation(fields: [mediaId], references: [id])
@@ -142,7 +142,7 @@ model Reel {
   creator     User                @relation(fields: [creatorId], references: [id])
   privacyType AccountPrivacyType? @default(PUBLIC)
 
-  likedByMe  Boolean?
+  likedByCreator  Boolean?
 
   media   Media? @relation(fields: [mediaId], references: [id])
   mediaId Int?
@@ -166,10 +166,10 @@ enum AudienceType {
   FRIENDS
 }
 
-enum PostPrivacyType {
-  SAVED
-  ARCHIVE
-}
+// enum PostPrivacyType {
+//   SAVED
+//   ARCHIVE
+// }
 
 enum PostFeedType {
   ONFEED
@@ -191,10 +191,10 @@ model Post {
   audience    AudienceType?
   creator     User             @relation(fields: [creatorId], references: [id])
   creatorId   Int
-  privacyType PostPrivacyType?
+  // privacyType PostPrivacyType?
   feedType    PostFeedType?    @default(ONFEED)
 
-  likedByMe  Boolean?
+  likedByCreator  Boolean?
 
   poll Poll[] @relation("PollPost")
 
