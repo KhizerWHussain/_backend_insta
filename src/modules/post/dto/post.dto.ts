@@ -38,6 +38,14 @@ export class CreatePostDto {
   mediaIds: number[];
 
   @ApiProperty({
+    description: 'ids of user to be tagged in the post',
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  userIds: number[];
+
+  @ApiProperty({
     description: 'Location associated with the post',
     required: false,
   })
@@ -156,4 +164,11 @@ export class savedPostDTO {
   @IsNotEmpty()
   @IsNumber()
   postId: number;
+}
+
+export class createSavedPostFolderDto {
+  @ApiProperty({ description: 'name of saved post folder' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 }

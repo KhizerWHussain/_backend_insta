@@ -2,6 +2,7 @@ import { Controller, Body, Param } from '@nestjs/common';
 import { PostService } from './post.service';
 import {
   CreatePostDto,
+  createSavedPostFolderDto,
   savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
@@ -128,23 +129,36 @@ export class PostController {
     return this._postService.getAllSavedPostsFolders(user);
   }
 
-  // @Get()
-  // findAll() {
-  //   return this._postService.findAll();
-  // }
+  @Authorized()
+  @Post({
+    path: '/folder/savedPosts/create',
+    description: 'creating saved posts folder',
+    response: APIResponseDTO,
+  })
+  createSavedPostsFolder(
+    @CurrentUser() user: User,
+    @Body() payload: createSavedPostFolderDto,
+  ) {
+    return this._postService.createSavedPostFolder(user, payload);
+  }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this._postService.findOne(+id);
-  // }
+  @Authorized()
+  @Post({
+    path: '/like/:postId',
+    description: 'like & unlike post (toggle)',
+    response: APIResponseDTO,
+  })
+  likePost(@CurrentUser() user: User, @Param('postId') postId: string) {
+    return this._postService.likeUnlikePost(user, Number(postId));
+  }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
-  //   return this.postService.update(+id, updatePostDto);
-  // }
-
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this._postService.remove(+id);
-  // }
+  @Authorized()
+  @Get({
+    path: '/likes/:postId',
+    description: 'get likes of single post',
+    response: APIResponseDTO,
+  })
+  getLikesOfPost(@CurrentUser() user: User, @Param('postId') postId: string) {
+    return this._postService.getLikesOfPost(user, Number(postId));
+  }
 }

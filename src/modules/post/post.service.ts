@@ -2,6 +2,7 @@ import { User } from '@prisma/client';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CreatePostDto,
+  createSavedPostFolderDto,
   savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
@@ -36,6 +37,23 @@ export class PostService {
       );
     }
 
+    if (payload?.userIds && payload?.userIds?.length) {
+      const findMultipleUsers = await this._dbService.user.findMany({
+        where: { id: { in: payload.userIds } },
+      });
+      if (findMultipleUsers.length !== payload.userIds.length) {
+        throw new BadRequestException(
+          'one or more users do not exist to be tagged',
+        );
+      }
+      const searchTaggedUserIsNotPostCreator = payload.userIds.includes(
+        user.id,
+      );
+      if (searchTaggedUserIsNotPostCreator) {
+        throw new BadRequestException('you cannot tagg yourself in a post');
+      }
+    }
+
     const createdPost = await this._dbService.$transaction(async (prisma) => {
       const post = await prisma.post.create({
         data: {
@@ -59,6 +77,18 @@ export class PostService {
             post: { connect: { id: post.id } },
             pollCreator: { connect: { id: user.id } },
           },
+        });
+      }
+
+      if (payload?.userIds && payload?.userIds?.length) {
+        const taggedData = payload.userIds.map((userId) => ({
+          taggedUserId: userId,
+          postId: post.id,
+        }));
+
+        await prisma.taggedPost.createMany({
+          data: taggedData,
+          skipDuplicates: true, // Optional: avoids error if a tag already exists for the same user-post pair
         });
       }
 
@@ -132,6 +162,30 @@ export class PostService {
         },
         likedByCreator: true,
         poll: true,
+        // taggedUsers: {
+        //   select: {
+        //     createdAt: true,
+        //     id: true,
+        //     taggedUser: {
+        //       select: {
+        //         fullName: true,
+        //         id: true,
+        //         username: true,
+        //         profile: {
+        //           select: {
+        //             id: true,
+        //             driveId: true,
+        //             extension: true,
+        //             size: true,
+        //             path: true,
+        //             meta: true,
+        //             name: true,
+        //           },
+        //         },
+        //       },
+        //     },
+        //   },
+        // },
       },
     });
 
@@ -461,6 +515,148 @@ export class PostService {
       status: true,
       message: 'saved posts folder found',
       data: findSavedPostsFolders,
+    };
+  }
+
+  async createSavedPostFolder(
+    user: User,
+    payload: createSavedPostFolderDto,
+  ): Promise<APIResponseDTO> {
+    const { name } = payload;
+
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    await this._dbService.savedPostFolder.create({
+      data: {
+        name: name.trim(),
+        user: { connect: { id: user.id } },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'folder created successfully',
+      data: null,
+    };
+  }
+
+  async likeUnlikePost(user: User, postId: number): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const findPostToLike = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null },
+    });
+
+    if (!findPostToLike) {
+      throw new BadRequestException('post donot exist');
+    }
+
+    const postAlreadyLiked = await this._dbService.likePost.findFirst({
+      where: { postId: postId, likeByUser: { id: user.id }, deletedAt: null },
+    });
+
+    if (postAlreadyLiked) {
+      await this._dbService.likePost.deleteMany({
+        where: { postId, likedByUserId: user.id },
+      });
+      if (postAlreadyLiked.likedByUserId == user.id) {
+        await this._dbService.post.update({
+          where: { id: postId, deletedAt: null, creatorId: user.id },
+          data: {
+            likedByCreator: false,
+          },
+        });
+      }
+      return {
+        status: true,
+        message: 'post unliked',
+        data: null,
+      };
+    }
+
+    await this._dbService.likePost.create({
+      data: {
+        likeByUser: { connect: { id: user.id } },
+        post: { connect: { id: postId } },
+      },
+    });
+
+    if (findPostToLike?.creatorId === user.id) {
+      await this._dbService.post.update({
+        where: { id: postId, deletedAt: null, creatorId: user.id },
+        data: {
+          likedByCreator: true,
+        },
+      });
+    }
+
+    return {
+      status: true,
+      message: 'post liked',
+      data: null,
+    };
+  }
+
+  async getLikesOfPost(user: User, postId: number): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const post = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null },
+    });
+
+    if (!post) {
+      throw new BadRequestException('post donot exist');
+    }
+
+    const getLikesOfPost = await this._dbService.likePost.findMany({
+      where: { postId, deletedAt: null },
+      select: {
+        id: true,
+        createdAt: true,
+        likeByUser: {
+          select: {
+            username: true,
+            id: true,
+            fullName: true,
+            email: true,
+            profile: {
+              select: {
+                id: true,
+                driveId: true,
+                name: true,
+                path: true,
+                size: true,
+                extension: true,
+                meta: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'post likes found',
+      data: getLikesOfPost,
     };
   }
 

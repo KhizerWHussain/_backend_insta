@@ -113,6 +113,8 @@ model User {
 
   folders  savedPostFolder[]
 
+  taggedPosts   TaggedPost[] @relation("UserTags")
+
   devices Device[]
 }
 
@@ -201,6 +203,8 @@ model Post {
 
   poll Poll[] @relation("PollPost")
 
+    taggedUsers   TaggedPost[] @relation("TaggedUsers")
+
     likes       likePost[]
 
   savedPosts SavedPost[] @relation("PostSavedPosts")
@@ -250,6 +254,21 @@ model likePost {
   updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()
   deletedAt DateTime? @db.Timestamptz()
 
+}
+
+model TaggedPost {
+  id            Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt DateTime? @db.Timestamptz()
+
+  post          Post      @relation("TaggedUsers", fields: [postId], references: [id])
+  postId        Int
+
+  taggedUser    User      @relation("UserTags", fields: [taggedUserId], references: [id])
+  taggedUserId  Int
+
+  @@unique([postId, taggedUserId]) // Ensure a user can only be tagged once per post
 }
 
 model Poll {
