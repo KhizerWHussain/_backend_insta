@@ -145,3 +145,15 @@ export class UpdatePostFeedTypeDto {
   @IsNotEmpty()
   postId: number;
 }
+
+export class savedPostDTO {
+  @ApiProperty({ description: 'saved post folder id' })
+  @IsOptional()
+  @IsNumber()
+  savedPostFolderId?: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  postId: number;
+}

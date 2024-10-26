@@ -2,6 +2,7 @@ import { User } from '@prisma/client';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CreatePostDto,
+  savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
 } from './dto/post.dto';
@@ -288,16 +289,179 @@ export class PostService {
     };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} post`;
+  async savedPost(user: User, payload: savedPostDTO): Promise<APIResponseDTO> {
+    const { postId } = payload;
+
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('User donot exist');
+    }
+
+    const findPostToSave = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null, feedType: 'ONFEED' },
+    });
+
+    if (!findPostToSave) {
+      throw new BadRequestException('Post donot exist');
+    }
+
+    if (postId && payload?.savedPostFolderId) {
+      const postcheck = await this.checkIfPostAlreadySavedUnsavedIt(
+        user.id,
+        postId,
+        payload.savedPostFolderId,
+      );
+      if (postcheck) {
+        return {
+          status: true,
+          message: 'post unsaved',
+          data: null,
+        };
+      }
+    }
+
+    if (payload?.savedPostFolderId) {
+      const findSavedPostFolder =
+        await this._dbService.savedPostFolder.findUnique({
+          where: {
+            id: payload.savedPostFolderId,
+            deletedAt: null,
+            creatorId: user.id,
+          },
+          select: { id: true },
+        });
+
+      if (!findSavedPostFolder) {
+        throw new BadRequestException('folder donot exist');
+      }
+
+      await this._dbService.savedPost.create({
+        data: {
+          post: { connect: { id: postId } },
+          savedByUser: { connect: { id: user.id } },
+          folder: { connect: { id: findSavedPostFolder.id } },
+        },
+      });
+    } else {
+      // Create a new saved folder and save the post to it (if folder donot exist)
+      this.createNewSavedFolderAndSavePost(user.id, postId);
+    }
+
+    return {
+      status: true,
+      message: 'post has been saved',
+      data: null,
+    };
   }
 
-  // update(id: number, updatePostDto: UpdatePostDto) {
-  //   return `This action updates a #${id} post`;
-  // }
+  async getAllMySavedPosts(
+    user: User,
+    folderId: number,
+  ): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
 
-  remove(id: number) {
-    return `This action removes a #${id} post`;
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const findSavedPostFolder =
+      await this._dbService.savedPostFolder.findUnique({
+        where: { id: folderId, deletedAt: null },
+      });
+
+    if (!findSavedPostFolder) {
+      throw new BadRequestException('folder donot exist');
+    }
+
+    const findSavedPostInSingleFolder =
+      await this._dbService.savedPost.findMany({
+        where: { savedByUserId: user.id, folderId: folderId },
+        include: {
+          post: {
+            select: {
+              id: true,
+              _count: true,
+              likedByCreator: true,
+              location: true,
+              caption: true,
+              media: {
+                select: {
+                  id: true,
+                  driveId: true,
+                  name: true,
+                  size: true,
+                  path: true,
+                  extension: true,
+                  meta: true,
+                },
+              },
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+    return {
+      status: true,
+      message: 'saved posts found',
+      data: findSavedPostInSingleFolder,
+    };
+  }
+
+  async getAllSavedPostsFolders(user: User): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const findSavedPostsFolders =
+      await this._dbService.savedPostFolder.findMany({
+        where: { creatorId: user.id, deletedAt: null },
+        include: {
+          savedPosts: {
+            select: {
+              id: true,
+              createdAt: true,
+              post: {
+                select: {
+                  id: true,
+                  caption: true,
+                  media: {
+                    select: {
+                      id: true,
+                      driveId: true,
+                      name: true,
+                      size: true,
+                      path: true,
+                      extension: true,
+                      meta: true,
+                    },
+                  },
+                  createdAt: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 4,
+            where: { deletedAt: null },
+          },
+        },
+      });
+
+    return {
+      status: true,
+      message: 'saved posts folder found',
+      data: findSavedPostsFolders,
+    };
   }
 
   private async deletingPostRelatedData(postId: number) {
@@ -316,5 +480,52 @@ export class PostService {
 
       return true;
     });
+  }
+
+  private async createNewSavedFolderAndSavePost(
+    userId: number,
+    postId: number,
+  ) {
+    await this._dbService.$transaction(async (prisma) => {
+      const createNewSavedPostFolder = await prisma.savedPostFolder.create({
+        data: {
+          user: { connect: { id: userId } },
+          name: 'New Folder',
+        },
+      });
+      await prisma.savedPost.create({
+        data: {
+          post: { connect: { id: postId } },
+          savedByUser: { connect: { id: userId } },
+          folder: { connect: { id: createNewSavedPostFolder.id } },
+        },
+      });
+    });
+  }
+
+  private async checkIfPostAlreadySavedUnsavedIt(
+    userId: number,
+    postId: number,
+    folderId: number,
+  ) {
+    const findSavePost = await this._dbService.savedPost.findFirst({
+      where: {
+        folderId: folderId,
+        deletedAt: null,
+        postId: postId,
+        savedByUserId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (findSavePost) {
+      await this._dbService.savedPost.delete({
+        where: { id: findSavePost.id },
+      });
+
+      return true;
+    }
+
+    return false;
   }
 }

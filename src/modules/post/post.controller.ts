@@ -2,6 +2,7 @@ import { Controller, Body, Param } from '@nestjs/common';
 import { PostService } from './post.service';
 import {
   CreatePostDto,
+  savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
 } from './dto/post.dto';
@@ -92,6 +93,39 @@ export class PostController {
   })
   getAllMyArchivedPosts(@CurrentUser() user: User) {
     return this._postService.getAllMyArchivedPosts(user);
+  }
+
+  @Authorized()
+  @Post({
+    path: '/savePost',
+    description: 'save anyone post including own post',
+    response: APIResponseDTO,
+  })
+  savedPost(@CurrentUser() user: User, @Body() payload: savedPostDTO) {
+    return this._postService.savedPost(user, payload);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/getAllSavedPosts/:folderId',
+    description: 'get all saved posts using folderId',
+    response: APIResponseDTO,
+  })
+  getAllSavedPostsOfFolder(
+    @CurrentUser() user: User,
+    @Param('folderId') folderId: number,
+  ) {
+    return this._postService.getAllMySavedPosts(user, folderId);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/getSavedPostsFolders',
+    description: 'get all saved posts folders of single user',
+    response: APIResponseDTO,
+  })
+  getAllSavedPostsFolders(@CurrentUser() user: User) {
+    return this._postService.getAllSavedPostsFolders(user);
   }
 
   // @Get()

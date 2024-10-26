@@ -105,10 +105,13 @@ model User {
   reels   Reel[]
 
   savedPosts SavedPost[]
+  likedPosts    likePost[]
 
   accountPrivacy AccountPrivacyType? @default(PUBLIC)
 
   polls Poll[] @relation("UserPolls")
+
+  folders  savedPostFolder[]
 
   devices Device[]
 }
@@ -198,6 +201,8 @@ model Post {
 
   poll Poll[] @relation("PollPost")
 
+    likes       likePost[]
+
   savedPosts SavedPost[] @relation("PostSavedPosts")
 }
 
@@ -213,7 +218,38 @@ model SavedPost {
   postId Int // Reference to the post that is saved
   post   Post @relation("PostSavedPosts", fields: [postId], references: [id])
 
-  @@unique([savedByUserId, postId]) // Ensure a user can save the same post only once
+  folder    savedPostFolder  @relation(fields: [folderId], references: [id])
+  folderId  Int
+
+  // @@unique([savedByUserId, postId]) // Ensure a user can save the same post only once
+
+   // Unique constraint: a user can save the same post only once in a folder
+    // @@unique([savedByUserId, postId, folderId])
+}
+
+model savedPostFolder {
+  id         Int          @id @default(autoincrement())
+  name       String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? @db.Timestamptz()
+
+  user       User         @relation(fields: [creatorId], references: [id])
+  creatorId     Int
+  savedPosts SavedPost[] 
+}
+
+model likePost {
+  id        Int       @id @default(autoincrement())
+  likeByUser      User      @relation(fields: [likedByUserId], references: [id])
+  likedByUserId    Int 
+  post      Post      @relation(fields: [postId], references: [id])
+  postId    Int 
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt DateTime? @db.Timestamptz()
+
 }
 
 model Poll {
