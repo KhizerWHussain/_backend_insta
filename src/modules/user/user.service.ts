@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { SigninRequestDTO, SignupRequestDTO } from './dto/usermodule.dto';
 import DatabaseService from 'src/database/database.service';
 import { APIResponseDTO } from 'src/core/response/response.schema';
-import { User, UserType } from '@prisma/client';
+import { RequestStatus, User, UserType } from '@prisma/client';
 import { createFullName } from 'src/util/customFunc';
 import {
   ComparePassword,
@@ -199,19 +199,202 @@ export class UserService {
     };
   }
 
-  async findAll() {
-    return `This action returns all user`;
+  async getMainPostListingTimeline(user: User): Promise<APIResponseDTO> {
+    return {
+      status: true,
+      message: 'post listing timeline found',
+      data: null,
+    };
   }
 
-  async findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async sendFollowRequest(
+    user: User,
+    recieverId: number,
+  ): Promise<APIResponseDTO> {
+    await this.checkUserExistOrNot({ userId: user.id });
+    await this.checkUserExistOrNot({
+      userId: recieverId,
+      errorMessage: 'requested user donot exist',
+    });
+
+    if (user.id === recieverId) {
+      throw new BadRequestException(
+        'You cannot send a follow request to yourself',
+      );
+    }
+
+    const existingRequest = await this._dbService.followRequest.findFirst({
+      where: {
+        requesterId: user.id,
+        receiverId: recieverId,
+        deletedAt: null,
+        status: 'PENDING',
+      },
+    });
+    if (existingRequest) {
+      await this._dbService.followRequest.deleteMany({
+        where: {
+          requesterId: user.id,
+          receiverId: recieverId,
+          deletedAt: null,
+          status: 'PENDING',
+        },
+      });
+      return {
+        status: true,
+        message: 'follow request has been unsent',
+        data: null,
+      };
+    }
+
+    await this._dbService.followRequest.create({
+      data: {
+        requesterId: user.id,
+        receiverId: recieverId,
+      },
+    });
+
+    return {
+      status: true,
+      message: 'follow request has been sent',
+      data: null,
+    };
   }
 
-  // async update(id: number, updateUserDto: UpdateUserDto) {
-  //   return `This action updates a #${id} user`;
-  // }
+  async acceptFollowRequest(
+    user: User,
+    requestId: number,
+  ): Promise<APIResponseDTO> {
+    const request = await this._dbService.followRequest.findUnique({
+      where: { id: requestId, receiverId: user.id, deletedAt: null },
+    });
 
-  async remove(id: number) {
-    return `This action removes a #${id} user`;
+    if (!request) {
+      throw new BadRequestException('request donot exist');
+    }
+
+    this.checkUserExistOrNot({ userId: user.id });
+
+    const result = await this._dbService.$transaction(async (prisma) => {
+      await prisma.followRequest.update({
+        where: {
+          id: requestId,
+        },
+        data: {
+          status: RequestStatus.ACCEPTED,
+        },
+      });
+      await prisma.followRequest.delete({
+        where: {
+          id: requestId,
+        },
+      });
+      const createFollower = await prisma.userFollow.create({
+        data: {
+          follower: { connect: { id: request.requesterId } },
+          following: { connect: { id: user.id } },
+        },
+      });
+      return createFollower;
+    });
+
+    return {
+      status: true,
+      message: 'Follow request accepted',
+      data: result,
+    };
   }
+
+  async getFollowersList(userId: number): Promise<APIResponseDTO> {
+    await this.checkUserExistOrNot({ userId });
+
+    const findYourFollowers = await this._dbService.userFollow.findMany({
+      where: { followingId: userId, deletedAt: null },
+      include: {
+        follower: {
+          select: {
+            id: true,
+            username: true,
+            fullName: true,
+            bio: true,
+            profile: {
+              select: {
+                id: true,
+                driveId: true,
+                path: true,
+                extension: true,
+                size: true,
+                name: true,
+                meta: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'user followers list found',
+      data: findYourFollowers,
+    };
+  }
+
+  async getFollowingUsersList(userId: number): Promise<APIResponseDTO> {
+    await this.checkUserExistOrNot({ userId });
+
+    const findUserWhomYouAreFollowing =
+      await this._dbService.userFollow.findMany({
+        where: { followerId: userId },
+        include: {
+          following: {
+            select: {
+              id: true,
+              username: true,
+              fullName: true,
+              bio: true,
+              profile: {
+                select: {
+                  id: true,
+                  driveId: true,
+                  path: true,
+                  extension: true,
+                  size: true,
+                  name: true,
+                  meta: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    return {
+      status: true,
+      message: 'followed by users list found',
+      data: findUserWhomYouAreFollowing,
+    };
+  }
+
+  private async checkUserExistOrNot({
+    userId,
+    errorMessage,
+    whereConditon,
+  }: UserExistOrNotTypes) {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: userId, deletedAt: null, ...whereConditon },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException(errorMessage || 'user donot exist');
+    }
+
+    return findUser;
+  }
+}
+
+interface UserExistOrNotTypes {
+  userId: number;
+  errorMessage?: string;
+  whereConditon?: any;
 }

@@ -660,6 +660,175 @@ export class PostService {
     };
   }
 
+  async getTaggedPosts(user: User): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const taggedPosts = await this._dbService.post.findMany({
+      where: {
+        taggedUsers: {
+          some: {
+            taggedUserId: user.id,
+          },
+        },
+        deletedAt: null,
+        feedType: 'ONFEED',
+      },
+      include: {
+        media: true,
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            profile: {
+              select: {
+                id: true,
+                driveId: true,
+                extension: true,
+                path: true,
+                meta: true,
+                name: true,
+              },
+            },
+            username: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'found posts which you are taggedOn',
+      data: taggedPosts,
+    };
+  }
+
+  async getTaggedUserOfSinglePost(
+    user: User,
+    postId: number,
+  ): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const findPost = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null },
+    });
+
+    if (!findPost) {
+      throw new BadRequestException('post donot exist');
+    }
+
+    const findUserTaggedOnSinglePost =
+      await this._dbService.taggedPost.findMany({
+        where: { postId, deletedAt: null },
+        select: {
+          taggedUser: {
+            select: {
+              id: true,
+              fullName: true,
+              bio: true,
+              username: true,
+              email: true,
+              profile: {
+                select: {
+                  id: true,
+                  driveId: true,
+                  extension: true,
+                  path: true,
+                  meta: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    return {
+      status: true,
+      message: 'found users tagged on the post',
+      data: findUserTaggedOnSinglePost,
+    };
+  }
+
+  async getPostDetails(user: User, postId: number): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: user.id, deletedAt: null },
+    });
+
+    if (!findUser) {
+      throw new BadRequestException('user donot exist');
+    }
+
+    const findPost = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+        caption: true,
+        createdAt: true,
+        updatedAt: true,
+        location: true,
+        poll: true,
+        likedByCreator: true,
+        media: {
+          select: {
+            id: true,
+            name: true,
+            meta: true,
+            size: true,
+            path: true,
+            extension: true,
+            driveId: true,
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            bio: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                meta: true,
+                size: true,
+                path: true,
+                extension: true,
+                driveId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!findPost) {
+      throw new BadRequestException('post donot exist');
+    }
+
+    return {
+      status: true,
+      message: 'post found successfully',
+      data: findPost,
+    };
+  }
+
   private async deletingPostRelatedData(postId: number) {
     return await this._dbService.$transaction(async (prisma) => {
       await prisma.media.deleteMany({

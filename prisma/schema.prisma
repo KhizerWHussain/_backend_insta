@@ -116,6 +116,10 @@ model User {
   taggedPosts   TaggedPost[] @relation("UserTags")
 
   devices Device[]
+
+  FollowRequests FollowRequest[] @relation("follow_requester")
+  FollowRecieves FollowRequest[] @relation("follow_reciever")
+
 }
 
 model Story {
@@ -163,8 +167,22 @@ model UserFollow {
   follower  User @relation("UserFollowers", fields: [followerId], references: [id])
   following User @relation("UserFollowing", fields: [followingId], references: [id])
 
-  @@unique([followerId, followingId]) // Ensure a unique relationship
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime? @db.Timestamptz()
+
+  // @@unique([followerId, followingId]) // Ensure a unique relationship
 }
+
+// model Follower {
+//   id         Int       @id @default(autoincrement())
+//   requestSender     User      @relation("sender", fields: [senderId], references: [id])
+//   senderId   Int
+//   requestReciever   User      @relation("receiver", fields: [receiverId], references: [id])
+//   receiverId Int
+//   createdAt  DateTime  @default(now())
+//   updatedAt   DateTime            @updatedAt
+//   deletedAt  DateTime? @db.Timestamptz()
+// }
 
 enum AudienceType {
   EVERYONE
@@ -269,6 +287,45 @@ model TaggedPost {
   taggedUserId  Int
 
   @@unique([postId, taggedUserId]) // Ensure a user can only be tagged once per post
+}
+
+// model commentPost {
+//   id              Int            @id @default(autoincrement())
+//   comment         String
+//   parentCommentId Int?
+//   user            User           @relation(fields: [userId], references: [id])
+//   userId          Int // Foreign key referencing the associated User
+//   post            Post           @relation(fields: [postId], references: [id])
+//   postId          Int // Foreign key referencing the associated Post
+//   replies         post_comment[] @relation("Replies")
+//   parentComment   post_comment?  @relation("Replies", fields: [parentCommentId], references: [id])
+//   createdAt       DateTime       @default(now()) @db.Timestamptz()
+//   updatedAt       DateTime       @default(now()) @updatedAt @db.Timestamptz()
+//   deletedAt       DateTime?      @db.Timestamptz()
+//   likedBy         Int[]          @default([]) // User IDs who liked the comment
+//   notification    Notification[]
+// }
+
+enum RequestStatus {
+  PENDING 
+  ACCEPTED
+  DECLINED    
+}
+
+model FollowRequest {
+  id               Int       @id @default(autoincrement())
+  requesterId      Int       
+  receiverId       Int    
+
+  status           RequestStatus @default(PENDING) 
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt DateTime? @db.Timestamptz()
+
+  requester        User      @relation("follow_requester", fields: [requesterId], references: [id])
+  receiver         User      @relation("follow_reciever", fields: [receiverId], references: [id])
+
+  // @@unique([requesterId, receiverId]) // Ensures one request per user pair
 }
 
 model Poll {

@@ -161,4 +161,37 @@ export class PostController {
   getLikesOfPost(@CurrentUser() user: User, @Param('postId') postId: string) {
     return this._postService.getLikesOfPost(user, Number(postId));
   }
+
+  @Authorized()
+  @Get({
+    path: '/getTaggedOn',
+    description: 'get post which user tagged on',
+    response: APIResponseDTO,
+  })
+  getTaggedPosts(@CurrentUser() user: User) {
+    return this._postService.getTaggedPosts(user);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/getUsersTaggedOnPost/:postId',
+    description: 'get users who are tagged on single post (anyone post)',
+    response: APIResponseDTO,
+  })
+  getTaggedUserOfSinglePost(
+    @CurrentUser() user: User,
+    @Param('postId') postId: number,
+  ) {
+    return this._postService.getTaggedUserOfSinglePost(user, postId);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/detail/:postId',
+    description: 'get post detail by Id',
+    response: APIResponseDTO,
+  })
+  getPostDetails(@CurrentUser() user: User, @Param('postId') postId: number) {
+    return this._postService.getPostDetails(user, postId);
+  }
 }

@@ -18,14 +18,14 @@ import {
 
 type RouteDecoratorsType = {
   path: string;
-  response: Function | any;
+  response?: Function | any;
   description?: string;
 };
 
 export function Post(args: RouteDecoratorsType) {
   return applyDecorators(
     ApiResponse({
-      type: args.response,
+      type: args?.response,
       status: HttpStatus.OK,
     }),
     ApiResponse({
@@ -56,7 +56,7 @@ export function Post(args: RouteDecoratorsType) {
 export function Put(args: RouteDecoratorsType) {
   return applyDecorators(
     ApiResponse({
-      type: args.response,
+      type: args?.response,
       status: HttpStatus.OK,
     }),
     ApiResponse({
@@ -87,7 +87,7 @@ export function Put(args: RouteDecoratorsType) {
 export function Patch(args: RouteDecoratorsType) {
   return applyDecorators(
     ApiResponse({
-      type: args.response,
+      type: args?.response,
       status: HttpStatus.OK,
     }),
     ApiResponse({
@@ -118,7 +118,7 @@ export function Patch(args: RouteDecoratorsType) {
 export function Get(args: RouteDecoratorsType) {
   return applyDecorators(
     ApiResponse({
-      type: args.response,
+      type: args?.response,
       status: HttpStatus.OK,
     }),
     ApiResponse({
@@ -149,7 +149,7 @@ export function Get(args: RouteDecoratorsType) {
 export function Delete(args: RouteDecoratorsType) {
   return applyDecorators(
     ApiResponse({
-      type: args.response,
+      type: args?.response,
       status: HttpStatus.OK,
     }),
     ApiResponse({
