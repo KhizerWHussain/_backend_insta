@@ -178,6 +178,57 @@ export class MediaService {
     };
   }
 
+  async findMediaUsingMediaIds({
+    mediaIds,
+    mediaType,
+    checkMediaType = false,
+  }: findMediaProp) {
+    const mediaItems = await this._dbService.media.findMany({
+      where: { id: { in: mediaIds }, deletedAt: null },
+    });
+
+    if (checkMediaType === true && mediaType) {
+      const allMediaMatchType = mediaItems.every((media) => {
+        if (mediaType === 'IMAGE') {
+          return media.type === 'IMAGE';
+        } else if (mediaType === MediaType.VIDEO) {
+          return media.type === MediaType.VIDEO;
+        }
+        return allMediaMatchType;
+      });
+    }
+
+    return mediaItems;
+  }
+
+  async findMediaByType(mediaIds: number[], mediaType: MediaType) {
+    const mediaItems = await this._dbService.media.findMany({
+      where: { id: { in: mediaIds }, deletedAt: null },
+      select: { type: true, id: true },
+    });
+
+    const foundMediaIds = mediaItems.map((media) => media.id);
+    const missingMediaIds = mediaIds.filter(
+      (id) => !foundMediaIds.includes(id),
+    );
+
+    if (missingMediaIds.length > 0) {
+      throw new BadRequestException(
+        `Media not found for IDs: ${missingMediaIds.join(', ')}`,
+      );
+    }
+
+    const hasInvalidMediaType = mediaItems.some(
+      (media) => media.type !== mediaType,
+    );
+
+    if (hasInvalidMediaType) {
+      return false;
+    }
+
+    return true;
+  }
+
   async updateFile(fileId: string, filePath: string): Promise<any> {
     // const media = {
     //   mimeType: 'image/jpeg', // Change this as needed
@@ -235,4 +286,10 @@ export class MediaService {
     });
     return media;
   }
+}
+
+interface findMediaProp {
+  mediaIds: number[];
+  mediaType?: MediaType;
+  checkMediaType?: boolean;
 }

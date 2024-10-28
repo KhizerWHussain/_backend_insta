@@ -117,4 +117,30 @@ export default class UserController {
   getUsersWhomIFollow(@Param('userId') userId: number) {
     return this._userService.getFollowingUsersList(Number(userId));
   }
+
+  @Authorized()
+  @Patch({
+    path: '/declineRequest/:requestId',
+    description: 'decline user follow request',
+    response: APIResponseDTO,
+  })
+  declineFollowRequest(
+    @CurrentUser() user: User,
+    @Param('requestId') requestId: number,
+  ) {
+    return this._userService.declineFollowRequest(user, Number(requestId));
+  }
+
+  @Authorized()
+  @Patch({
+    path: '/unfollowUser/:userToUnfollowId',
+    description: 'unfollow already followed user',
+    response: APIResponseDTO,
+  })
+  unfollowUser(
+    @CurrentUser() user: User,
+    @Param('userToUnfollowId') userToUnfollowId: number,
+  ) {
+    return this._userService.unfollowUser(user, Number(userToUnfollowId));
+  }
 }

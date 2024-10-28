@@ -57,7 +57,8 @@ model Media {
 
   reel Reel?
 
-  story Story?
+  story Story? @relation(fields: [storyId], references: [id])
+  storyId Int?
 
   @@unique([creatorId])
 }
@@ -120,30 +121,52 @@ model User {
   FollowRequests FollowRequest[] @relation("follow_requester")
   FollowRecieves FollowRequest[] @relation("follow_reciever")
 
+
+  commentPost commentPost[]
+
+  StoryView StoryView[]
+}
+
+model StoryView {
+  id         Int      @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime? @db.Timestamptz()
+
+  storyId    Int
+  viewerId   Int
+
+  viewedAt   DateTime @default(now())
+  
+  story      Story    @relation(fields: [storyId], references: [id])
+  viewer     User     @relation(fields: [viewerId], references: [id])
 }
 
 model Story {
   id        Int       @id @default(autoincrement())
-  content   String? // Content of the story, e.g., text, image, video URL
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime? @db.Timestamptz()
-  creatorId Int // Reference to the user who created the story
+
+  creatorId Int
   creator   User      @relation(fields: [creatorId], references: [id])
 
-  privacyType AccountPrivacyType? @default(PUBLIC)
+  AudienceType AudienceType? @default(EVERYONE)
+ 
+  collage Boolean?   @default(false)
+  seenByCreator  Boolean?  @default(false)
 
-  likedByCreator  Boolean?
+  media   Media[]
+  mediaType  MediaType
 
-  mediaId Int // Reference to media for the story
-  media   Media @relation(fields: [mediaId], references: [id])
+  caption String?
 
-  @@unique([mediaId], name: "Unique_MediaId")
+  seenBy StoryView[] 
+
+  // @@unique([mediaId], name: "Unique_MediaId")
 }
 
 model Reel {
   id          Int                 @id @default(autoincrement())
-  content     String? // Content of the reel, e.g., video URL
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   deletedAt   DateTime?           @db.Timestamptz()
@@ -173,26 +196,11 @@ model UserFollow {
   // @@unique([followerId, followingId]) // Ensure a unique relationship
 }
 
-// model Follower {
-//   id         Int       @id @default(autoincrement())
-//   requestSender     User      @relation("sender", fields: [senderId], references: [id])
-//   senderId   Int
-//   requestReciever   User      @relation("receiver", fields: [receiverId], references: [id])
-//   receiverId Int
-//   createdAt  DateTime  @default(now())
-//   updatedAt   DateTime            @updatedAt
-//   deletedAt  DateTime? @db.Timestamptz()
-// }
 
 enum AudienceType {
   EVERYONE
   FRIENDS
 }
-
-// enum PostPrivacyType {
-//   SAVED
-//   ARCHIVE
-// }
 
 enum PostFeedType {
   ONFEED
@@ -226,6 +234,8 @@ model Post {
     likes       likePost[]
 
   savedPosts SavedPost[] @relation("PostSavedPosts")
+
+  commentPost commentPost[]
 }
 
 model SavedPost {
@@ -289,22 +299,25 @@ model TaggedPost {
   @@unique([postId, taggedUserId]) // Ensure a user can only be tagged once per post
 }
 
-// model commentPost {
-//   id              Int            @id @default(autoincrement())
-//   comment         String
-//   parentCommentId Int?
-//   user            User           @relation(fields: [userId], references: [id])
-//   userId          Int // Foreign key referencing the associated User
-//   post            Post           @relation(fields: [postId], references: [id])
-//   postId          Int // Foreign key referencing the associated Post
-//   replies         post_comment[] @relation("Replies")
-//   parentComment   post_comment?  @relation("Replies", fields: [parentCommentId], references: [id])
-//   createdAt       DateTime       @default(now()) @db.Timestamptz()
-//   updatedAt       DateTime       @default(now()) @updatedAt @db.Timestamptz()
-//   deletedAt       DateTime?      @db.Timestamptz()
-//   likedBy         Int[]          @default([]) // User IDs who liked the comment
-//   notification    Notification[]
-// }
+model commentPost {
+  id              Int            @id @default(autoincrement())
+  comment         String
+
+  commentator            User           @relation(fields: [commentatorId], references: [id])
+  commentatorId          Int // Foreign key referencing the associated User
+
+  post            Post           @relation(fields: [postId], references: [id])
+  postId          Int // Foreign key referencing the associated Post
+
+  replies         commentPost[] @relation("Replies")
+  parentComment   commentPost?  @relation("Replies", fields: [parentCommentId], references: [id])
+  parentCommentId Int?
+
+  createdAt       DateTime       @default(now()) @db.Timestamptz()
+  updatedAt       DateTime       @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt       DateTime?      @db.Timestamptz()
+  likedBy         Int[]          @default([]) 
+}
 
 enum RequestStatus {
   PENDING 
