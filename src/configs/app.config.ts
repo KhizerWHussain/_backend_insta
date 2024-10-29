@@ -3,7 +3,6 @@ config();
 
 const AppConfig = {
   APP: {
-    NAME: 'API',
     PORT: Number(process.env.APP_PORT),
     LOG_LEVEL: Number(process.env.APP_LOG_LEVEL),
   },

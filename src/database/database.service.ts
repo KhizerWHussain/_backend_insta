@@ -1,9 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Prisma, PrismaClient } from '@prisma/client';
-// import AppConfig from '../configs/app.config';
-// import { Logger } from '../helpers/logger.helper';
-
-// const QUERY: any = 'query';
+import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export default class DatabaseService
@@ -16,16 +12,6 @@ export default class DatabaseService
       log: ['warn', 'error', 'info', { emit: 'event', level: 'query' }],
     });
   }
-
-  // private _injectQueryLogger() {
-  //     if (AppConfig.APP.DEBUG) {
-  //         this.$on(QUERY, (e: Prisma.QueryEvent) => {
-  //             Logger.Trace(e.query);
-  //             Logger.Trace(e.params);
-  //             Logger.Trace(e.duration + ' ms');
-  //         });
-  //     }
-  // }
 
   // private _applySoftDeleteMiddleware() {
   //     const softDeleteExtension = this.$extends({
@@ -134,7 +120,6 @@ export default class DatabaseService
   }
 
   async onModuleInit() {
-    // this._injectQueryLogger();
     this._applySoftDeleteMiddleware();
     await this.$connect();
   }

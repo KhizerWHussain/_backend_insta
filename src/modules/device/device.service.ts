@@ -22,7 +22,7 @@ export default class DeviceService {
   async FindById(id: number): Promise<CreateDeviceResponseDTO> {
     const device = await this._dbService.device.findFirst({ where: { id } });
     if (!device) {
-      throw new NotFoundException('user.device_not_found');
+      throw new NotFoundException('User device not found');
     }
     return device;
   }
