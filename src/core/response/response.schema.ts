@@ -49,4 +49,6 @@ export class APIResponseDTO {
 
   @ApiProperty()
   data: any;
+
+  test?: any;
 }

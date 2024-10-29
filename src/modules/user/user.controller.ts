@@ -143,4 +143,14 @@ export default class UserController {
   ) {
     return this._userService.unfollowUser(user, Number(userToUnfollowId));
   }
+
+  @Authorized()
+  @Patch({
+    path: '/deActivate',
+    description: 'deActivate the user',
+    response: APIResponseDTO,
+  })
+  deActivateUser(@CurrentUser() user: User) {
+    return this._userService.deActivateUser(user);
+  }
 }

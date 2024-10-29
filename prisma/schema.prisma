@@ -46,8 +46,10 @@ model Media {
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()
   deletedAt DateTime? @db.Timestamptz()
+
   creator   User?     @relation(fields: [creatorId], references: [id])
   creatorId Int?
+  
   driveId String
 
   postMusic Post[] @relation("PostMusic")
@@ -55,12 +57,15 @@ model Media {
   post   Post? @relation(fields: [postId], references: [id])
   postId Int?
 
-  reel Reel?
+  reel Reel? @relation(fields: [reelid], references: [id])
+  reelid Int?
 
   story Story? @relation(fields: [storyId], references: [id])
   storyId Int?
 
   @@unique([creatorId])
+
+  Reel Reel[] @relation("reelMusic")
 }
 
 enum AccountPrivacyType {
@@ -78,6 +83,11 @@ model Device {
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz()
   deletedAt DateTime? @db.Timestamptz()
+}
+
+enum UserActiveStatus {
+  ACTIVE
+  DEACTIVATED
 }
 
 model User {
@@ -125,6 +135,8 @@ model User {
   commentPost commentPost[]
 
   StoryView StoryView[]
+
+  activeStatus UserActiveStatus? @default(ACTIVE)
 }
 
 model StoryView {
@@ -170,16 +182,19 @@ model Reel {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   deletedAt   DateTime?           @db.Timestamptz()
-  creatorId   Int // Reference to the user who created the reel
+  
+  creatorId   Int 
   creator     User                @relation(fields: [creatorId], references: [id])
-  privacyType AccountPrivacyType? @default(PUBLIC)
 
-  likedByCreator  Boolean?
+  seenByCreator  Boolean?
 
-  media   Media? @relation(fields: [mediaId], references: [id])
-  mediaId Int?
+  media   Media[]
 
-  @@unique([mediaId], name: "Unique_MediaId")
+  music  Media? @relation("reelMusic", fields: [musicId], references: [id])
+  musicId Int?
+
+  caption String?
+
 }
 
 model UserFollow {

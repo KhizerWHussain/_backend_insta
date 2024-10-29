@@ -19,18 +19,6 @@ export class UserService {
   ) {}
 
   async userSignup(payload: SignupRequestDTO): Promise<APIResponseDTO> {
-    // const UserExistWithThisEmail = await this._dbService.user.findUnique({
-    //   where: {
-    //     email: payload.email,
-    //     username: payload.username,
-    //     deletedAt: null,
-    //   },
-    // });
-
-    // if (UserExistWithThisEmail) {
-    //   throw new BadRequestException('user with this email already exist');
-    // }
-
     const UserExistWithThisUsername = await this._dbService.user.findUnique({
       where: { username: payload.username },
     });
@@ -75,11 +63,22 @@ export class UserService {
         where: { id: payload.profileMediaId, type: 'IMAGE', deletedAt: null },
       });
 
+      if (!findProfileMedia) {
+        throw new BadRequestException('profile media does not exist');
+      }
+
+      if (findProfileMedia?.creatorId) {
+        throw new BadRequestException(
+          'this media is already associated with other user',
+        );
+      }
+
       if (findProfileMedia) {
         await prisma.media.update({
           where: { id: payload.profileMediaId },
           data: {
-            creator: { connect: { id: createdUser.id } },
+            // creator: { connect: { id: createdUser.id } },
+            creatorId: createdUser.id,
           },
         });
       }
@@ -425,7 +424,7 @@ export class UserService {
     }
 
     await this._dbService.$transaction(async (prisma) => {
-      await prisma.userFollow.delete({
+      await prisma.userFollow.deleteMany({
         where: { id: followRelation.id },
       });
     });
@@ -523,10 +522,87 @@ export class UserService {
 
     return findUser;
   }
+
+  async findUsersWhomIAmFollowing({ user }: findUserWhomIFollowProp) {
+    const findUsersWhomIAmFollowing = await this._dbService.user.findMany({
+      where: {
+        // following: {
+        //   some: { id: user.id },
+        // },
+        following: {
+          some: {
+            followerId: user.id,
+          },
+        },
+      },
+      include: {
+        _count: {
+          select: {
+            followers: true,
+            following: true,
+            stories: true,
+          },
+        },
+        stories: true,
+        profile: {
+          select: {
+            id: true,
+            driveId: true,
+            path: true,
+            extension: true,
+            size: true,
+            name: true,
+            meta: true,
+          },
+        },
+      },
+    });
+    const userWhomIFollowIds = findUsersWhomIAmFollowing.map((user) => user.id);
+
+    return {
+      userWhomIFollowIds,
+      findUsersWhomIAmFollowing,
+    };
+  }
+
+  async deActivateUser(user: User): Promise<APIResponseDTO> {
+    const findUser = await this.checkUserExistOrNot({ userId: user.id });
+
+    if (findUser.activeStatus !== 'ACTIVE') {
+      await this._dbService.user.update({
+        where: { id: findUser.id },
+        data: {
+          activeStatus: 'ACTIVE',
+        },
+      });
+      return {
+        status: true,
+        message: 'activated successfully',
+        data: null,
+      };
+    }
+
+    await this._dbService.user.update({
+      where: { id: findUser.id },
+      data: {
+        activeStatus: 'DEACTIVATED',
+      },
+    });
+
+    return {
+      status: true,
+      message: 'deactivated successfully',
+      data: null,
+    };
+  }
 }
 
 interface UserExistOrNotTypes {
   userId: number;
   errorMessage?: string;
   whereConditon?: any;
+}
+
+interface findUserWhomIFollowProp {
+  user: User;
 }

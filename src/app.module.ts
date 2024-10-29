@@ -7,6 +7,7 @@ import { UserModule } from './modules/user/user.module';
 import { MediaModule } from './modules/media/media.module';
 import { PostModule } from './modules/post/post.module';
 import { StoryModule } from './modules/story/story.module';
+import { ReelModule } from './modules/reel/reel.module';
 import AuthGuard from './modules/auth/auth.guard';
 import DeviceModule from './modules/device/device.module';
 import AuthModule from './modules/auth/auth.module';
@@ -20,6 +21,7 @@ import AuthModule from './modules/auth/auth.module';
     MediaModule,
     PostModule,
     StoryModule,
+    ReelModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AuthGuard }],
