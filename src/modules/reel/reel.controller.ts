@@ -1,34 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body } from '@nestjs/common';
 import { ReelService } from './reel.service';
-import { CreateReelDto } from './dto/create-reel.dto';
-import { UpdateReelDto } from './dto/update-reel.dto';
+import { CreateReelDto } from './dto/reel.dto';
+import { ApiController, CurrentUser, Post } from 'src/core/decorators';
+import { User } from '@prisma/client';
 
-@Controller('reel')
+@ApiController({
+  path: '/reel',
+  tag: 'reel',
+  version: '1',
+})
 export class ReelController {
   constructor(private readonly reelService: ReelService) {}
 
-  @Post()
-  create(@Body() createReelDto: CreateReelDto) {
-    return this.reelService.create(createReelDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.reelService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.reelService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateReelDto: UpdateReelDto) {
-    return this.reelService.update(+id, updateReelDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.reelService.remove(+id);
+  @Post({
+    path: '/create',
+  })
+  create(@CurrentUser() user: User, @Body() payload: CreateReelDto) {
+    return this.reelService.create(user, payload);
   }
 }

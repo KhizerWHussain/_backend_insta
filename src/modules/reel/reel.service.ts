@@ -1,26 +1,45 @@
-import { Injectable } from '@nestjs/common';
-import { CreateReelDto } from './dto/create-reel.dto';
-import { UpdateReelDto } from './dto/update-reel.dto';
+import { User } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { CreateReelDto } from './dto/reel.dto';
+import { APIResponseDTO } from 'src/core/response/response.schema';
+import DatabaseService from 'src/database/database.service';
 
 @Injectable()
 export class ReelService {
-  create(createReelDto: CreateReelDto) {
-    return 'This action adds a new reel';
-  }
+  constructor(private readonly _dbService: DatabaseService) {}
+  async create(user: User, payload: CreateReelDto): Promise<APIResponseDTO> {
+    const { mediaIds } = payload;
 
-  findAll() {
-    return `This action returns all reel`;
-  }
+    const findMedia = await this._dbService.media.findMany({
+      where: { id: { in: mediaIds }, deletedAt: null },
+    });
 
-  findOne(id: number) {
-    return `This action returns a #${id} reel`;
-  }
+    if (!findMedia) {
+      throw new NotFoundException('media does not exist');
+    }
 
-  update(id: number, updateReelDto: UpdateReelDto) {
-    return `This action updates a #${id} reel`;
-  }
+    let musicMedia: any = null;
+    if (payload.musicId) {
+      musicMedia = await this._dbService.media.findUnique({
+        where: { id: payload.musicId, deletedAt: null },
+      });
+    }
 
-  remove(id: number) {
-    return `This action removes a #${id} reel`;
+    await this._dbService.reel.create({
+      data: {
+        caption: payload.caption || null,
+        media: {
+          connect: mediaIds.map((mediaId: number) => ({ id: mediaId })),
+        },
+        music: musicMedia ? { connect: { id: musicMedia.id } } : null,
+        creator: { connect: { id: user.id } },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'reel created successfully',
+      data: null,
+    };
   }
 }
