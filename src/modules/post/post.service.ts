@@ -15,10 +15,14 @@ import {
 } from './dto/post.dto';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
+import { UtilityService } from 'src/util/utility.service';
 
 @Injectable()
 export class PostService {
-  constructor(private _dbService: DatabaseService) {}
+  constructor(
+    private _dbService: DatabaseService,
+    private readonly _util: UtilityService,
+  ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
     const findUser = await this._dbService.user.findUnique({
@@ -842,7 +846,7 @@ export class PostService {
     postId: number,
     payload: commentOnPostDto,
   ): Promise<APIResponseDTO> {
-    await this.checkPostExistOrNot(postId);
+    await this._util.checkPostExistOrNot(postId);
 
     if (payload.parentCommentId) {
       const parentCommentExists = await this._dbService.commentPost.findUnique({
@@ -882,7 +886,7 @@ export class PostService {
     user: User,
     postId: number,
   ): Promise<APIResponseDTO> {
-    await this.checkPostExistOrNot(postId);
+    await this._util.checkPostExistOrNot(postId);
 
     const comments = await this._dbService.commentPost.findMany({
       where: { postId, parentCommentId: null },
@@ -976,7 +980,7 @@ export class PostService {
     postId: number,
     commentId: number,
   ): Promise<APIResponseDTO> {
-    const commentExist = await this.CheckCommentOnPostExistOrNot(
+    const commentExist = await this._util.CheckCommentOnPostExistOrNot(
       commentId,
       postId,
     );
@@ -1004,14 +1008,17 @@ export class PostService {
     user: User,
     payload: likeCommentOfPostDto,
   ): Promise<APIResponseDTO> {
-    await this.checkPostExistOrNot(payload.postId);
+    await this._util.checkPostExistOrNot(payload.postId);
     const { commentId, postId } = payload;
-    const comment = await this.CheckCommentOnPostExistOrNot(commentId, postId);
+    const comment = await this._util.CheckCommentOnPostExistOrNot(
+      commentId,
+      postId,
+    );
 
     if (comment.likedBy.includes(user.id)) {
       const updatedLikedBy = comment.likedBy.filter((id) => id !== user.id);
 
-      const result = await this._dbService.commentPost.update({
+      await this._dbService.commentPost.update({
         where: {
           id: comment.id,
         },
@@ -1048,7 +1055,7 @@ export class PostService {
     postId: number,
     commentId: number,
   ): Promise<APIResponseDTO> {
-    await this.CheckCommentOnPostExistOrNot(commentId, postId);
+    await this._util.CheckCommentOnPostExistOrNot(commentId, postId);
 
     const comments = await this._dbService.commentPost.findMany({
       where: {
@@ -1176,29 +1183,5 @@ export class PostService {
     }
 
     return false;
-  }
-
-  private async checkPostExistOrNot(postId: number) {
-    const findPost = await this._dbService.post.findUnique({
-      where: { id: postId, deletedAt: null, feedType: 'ONFEED' },
-    });
-    if (!findPost) {
-      throw new BadRequestException('post does not exist');
-    }
-    return findPost;
-  }
-
-  private async CheckCommentOnPostExistOrNot(
-    commentId: number,
-    postId: number,
-  ) {
-    const commentFound = await this._dbService.commentPost.findUnique({
-      where: { id: commentId, postId, deletedAt: null },
-      include: { replies: true, _count: true },
-    });
-    if (!commentFound) {
-      throw new NotFoundException('Comment not found.');
-    }
-    return commentFound;
   }
 }

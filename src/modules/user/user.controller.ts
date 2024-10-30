@@ -74,31 +74,6 @@ export default class UserController {
   }
 
   @Authorized()
-  @Post({
-    path: '/follow/request/:recieverId',
-    description: 'send follow request',
-    response: APIResponseDTO,
-  })
-  sendFollowRequest(
-    @CurrentUser() user: User,
-    @Param('recieverId') recieverId: number,
-  ) {
-    return this._userService.sendFollowRequest(user, recieverId);
-  }
-
-  @Authorized()
-  @Patch({
-    path: '/acceptRequst/:requestId',
-    description: 'accept friend request',
-  })
-  acceptFollowRequest(
-    @CurrentUser() user: User,
-    @Param('requestId') requestId: number,
-  ) {
-    return this._userService.acceptFollowRequest(user, Number(requestId));
-  }
-
-  @Authorized()
   @Get({
     path: '/getFollowersList/:userId',
     description: 'get followers list of user (anyone)',
@@ -116,32 +91,6 @@ export default class UserController {
   })
   getUsersWhomIFollow(@Param('userId') userId: number) {
     return this._userService.getFollowingUsersList(Number(userId));
-  }
-
-  @Authorized()
-  @Patch({
-    path: '/declineRequest/:requestId',
-    description: 'decline user follow request',
-    response: APIResponseDTO,
-  })
-  declineFollowRequest(
-    @CurrentUser() user: User,
-    @Param('requestId') requestId: number,
-  ) {
-    return this._userService.declineFollowRequest(user, Number(requestId));
-  }
-
-  @Authorized()
-  @Patch({
-    path: '/unfollowUser/:userToUnfollowId',
-    description: 'unfollow already followed user',
-    response: APIResponseDTO,
-  })
-  unfollowUser(
-    @CurrentUser() user: User,
-    @Param('userToUnfollowId') userToUnfollowId: number,
-  ) {
-    return this._userService.unfollowUser(user, Number(userToUnfollowId));
   }
 
   @Authorized()

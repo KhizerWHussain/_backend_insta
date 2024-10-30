@@ -2,7 +2,6 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { v4 as uuid } from 'uuid';
 import DatabaseService from '../../database/database.service';
 import { DeviceType, User } from '@prisma/client';
-// import AppConfig from '../../configs/app.config';
 import DeviceService from '../device/device.service';
 
 export class AuthModel {

@@ -131,12 +131,15 @@ model User {
   FollowRequests FollowRequest[] @relation("follow_requester")
   FollowRecieves FollowRequest[] @relation("follow_reciever")
 
-
   commentPost commentPost[]
-
   StoryView StoryView[]
 
   activeStatus UserActiveStatus? @default(ACTIVE)
+
+  blockedUsers     BlockedUser[] @relation("blocker")
+
+  blockedByUsers   BlockedUser[] @relation("beingBlocked")
+
 }
 
 model StoryView {
@@ -370,4 +373,20 @@ model Poll {
 
   pollCreatorId Int // Reference to the User who created this poll
   pollCreator   User @relation("UserPolls", fields: [pollCreatorId], references: [id])
+}
+
+
+model BlockedUser {
+  id         Int      @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? @db.Timestamptz()
+
+  blocker    User     @relation("blocker", fields: [blockerId], references: [id])
+  blockerId  Int      // ID of the user who is blocking
+
+  userBeingBlocked    User     @relation("beingBlocked", fields: [userBeingBlockedId], references: [id])
+  userBeingBlockedId  Int      // ID of the user who is being blocked
+
+  @@unique([blockerId, userBeingBlockedId]) // Ensure that a user can block another user only once
 }

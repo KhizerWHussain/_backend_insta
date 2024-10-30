@@ -8,16 +8,16 @@ import {
 import { CreateStoryDto } from './dto/story.dto';
 import DatabaseService from 'src/database/database.service';
 import { APIResponseDTO } from 'src/core/response/response.schema';
-import { UserService } from '../user/user.service';
 import { MediaService } from '../media/media.service';
 import { ExcludeFields } from 'src/helpers/util.helper';
+import { UtilityService } from 'src/util/utility.service';
 
 @Injectable()
 export class StoryService {
   constructor(
     private readonly _dbService: DatabaseService,
-    private readonly _userService: UserService,
     private readonly _mediaService: MediaService,
+    private readonly _util: UtilityService,
   ) {}
 
   async createStory(
@@ -25,7 +25,7 @@ export class StoryService {
     payload: CreateStoryDto,
   ): Promise<APIResponseDTO> {
     const { mediaType, mediaIds } = payload;
-    await this._userService.checkUserExistOrNot({ userId: user.id });
+    await this._util.checkUserExistOrNot({ userId: user.id });
 
     const checkMediaWithMediaType = await this._mediaService.findMediaByType(
       mediaIds,
@@ -72,7 +72,7 @@ export class StoryService {
   }
 
   async getMyStories(user: User): Promise<APIResponseDTO> {
-    await this._userService.checkUserExistOrNot({ userId: user.id });
+    await this._util.checkUserExistOrNot({ userId: user.id });
 
     const findMyStories = await this._dbService.story.findMany({
       where: { creatorId: user.id, deletedAt: null },
@@ -459,10 +459,9 @@ export class StoryService {
   }
 
   private async getFollowingUsersStories(user: User, twentyFourHoursAgo: Date) {
-    const { userWhomIFollowIds } =
-      await this._userService.findUsersWhomIAmFollowing({
-        user,
-      });
+    const { userWhomIFollowIds } = await this._util.findUsersWhomIAmFollowing({
+      user,
+    });
 
     const followingStories = await this._dbService.story.findMany({
       where: {
