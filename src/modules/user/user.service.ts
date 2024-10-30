@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { SigninRequestDTO, SignupRequestDTO } from './dto/usermodule.dto';
 import DatabaseService from 'src/database/database.service';
 import { APIResponseDTO } from 'src/core/response/response.schema';
@@ -515,11 +519,9 @@ export class UserService {
     const findUser = await this._dbService.user.findUnique({
       where: { id: userId, deletedAt: null, ...whereConditon },
     });
-
     if (!findUser) {
-      throw new BadRequestException(errorMessage || 'user donot exist');
+      throw new BadRequestException(errorMessage || 'user does not exist');
     }
-
     return findUser;
   }
 
@@ -593,6 +595,176 @@ export class UserService {
       status: true,
       message: 'deactivated successfully',
       data: null,
+    };
+  }
+
+  async getOtherUser(user: User, findUserId: number): Promise<APIResponseDTO> {
+    const findUser = await this._dbService.user.findUnique({
+      where: { id: findUserId, deletedAt: null, activeStatus: 'ACTIVE' },
+      select: {
+        id: true,
+        fullName: true,
+        _count: {
+          select: {
+            followers: true,
+            following: true,
+            posts: true,
+          },
+        },
+        bio: true,
+        accountPrivacy: true,
+        email: true,
+        username: true,
+        gender: true,
+        createdAt: true,
+        profile: {
+          select: {
+            id: true,
+            driveId: true,
+            name: true,
+            path: true,
+            meta: true,
+            extension: true,
+            size: true,
+          },
+        },
+      },
+    });
+
+    if (!findUser) {
+      throw new NotFoundException('user does not exist');
+    }
+
+    const isIFollowingUser = await this._dbService.userFollow.findFirst({
+      where: {
+        followerId: user.id,
+        followingId: findUserId,
+      },
+    });
+
+    const isUserFollowingMe = await this._dbService.userFollow.findFirst({
+      where: {
+        followerId: findUserId,
+        followingId: user.id,
+      },
+    });
+
+    if (user.id === findUserId) {
+      throw new BadRequestException('cannot search for yourselve');
+    }
+
+    return {
+      status: true,
+      message: 'user data found',
+      data: {
+        ...findUser,
+        iAmFollowingUser: !!isIFollowingUser, // True if current user is following the target user
+        userIsFollowingMe: !!isUserFollowingMe, // True if target user is following the current user
+      },
+    };
+  }
+
+  async getPostOfOtherUser(
+    user: User,
+    otherUserId: number,
+  ): Promise<APIResponseDTO> {
+    const otherUser = await this.checkUserExistOrNot({
+      userId: otherUserId,
+      whereConditon: { activeStatus: 'ACTIVE' },
+    });
+
+    if (otherUser.id === user.id) {
+      throw new BadRequestException('you cannot search for youself');
+    }
+
+    console.log('otherUser ==>', otherUser.fullName);
+
+    if (otherUser.accountPrivacy === 'PRIVATE') {
+      // Check if the otherUser is following the current user
+      const isOtherUserFollowingMe = await this._dbService.userFollow.findFirst(
+        {
+          where: {
+            followerId: otherUserId, // otherUser must follow the current user
+            followingId: user.id,
+          },
+        },
+      );
+
+      // If the otherUser is not following the current user, deny access
+      if (!isOtherUserFollowingMe) {
+        return {
+          status: false,
+          message:
+            'This user has a private account and is not following you. You cannot view their posts.',
+          data: null,
+        };
+      }
+    }
+
+    // Get posts based on the post visibility settings
+    const posts = await this._dbService.post.findMany({
+      where: {
+        creatorId: otherUserId,
+        deletedAt: null,
+        OR: [
+          {
+            audience: 'EVERYONE', // Posts visible to everyone
+          },
+          {
+            audience: 'FRIENDS', // Posts visible to friends only if otherUser follows the current user
+            creator: {
+              followers: {
+                some: {
+                  followerId: user.id, // Check if otherUser is following the current user
+                },
+              },
+            },
+          },
+        ],
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                path: true,
+                driveId: true,
+                extension: true,
+                size: true,
+              },
+            },
+            email: true,
+          },
+        },
+        media: {
+          select: {
+            id: true,
+            name: true,
+            path: true,
+            driveId: true,
+            extension: true,
+            size: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'Posts of other user found',
+      data: posts,
     };
   }
 

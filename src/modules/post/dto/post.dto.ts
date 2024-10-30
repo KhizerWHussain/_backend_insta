@@ -189,3 +189,15 @@ export class commentOnPostDto {
   @IsString()
   comment: string;
 }
+
+export class likeCommentOfPostDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  postId: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  commentId: number;
+}

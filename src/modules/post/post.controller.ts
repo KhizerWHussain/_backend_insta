@@ -4,11 +4,13 @@ import {
   commentOnPostDto,
   CreatePostDto,
   createSavedPostFolderDto,
+  likeCommentOfPostDto,
   savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
 } from './dto/post.dto';
 import {
+  ApiController,
   Authorized,
   CurrentUser,
   Delete,
@@ -20,7 +22,11 @@ import {
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { User } from '@prisma/client';
 
-@Controller('post')
+@ApiController({
+  path: '/post',
+  tag: 'post',
+  version: '1',
+})
 export class PostController {
   constructor(private readonly _postService: PostService) {}
 
@@ -208,5 +214,63 @@ export class PostController {
     @Body() payload: commentOnPostDto,
   ) {
     return this._postService.commentOnPost(user, Number(postId), payload);
+  }
+
+  @Authorized()
+  @Delete({
+    path: '/:postId/comment/:commentId',
+    description: 'delete comment on post',
+    response: APIResponseDTO,
+  })
+  deleteCommentOnPost(
+    @CurrentUser() user: User,
+    @Param('postId') postId: number,
+    @Param('commentId') commentId: number,
+  ) {
+    return this._postService.deleteCommentOnPost(
+      user,
+      Number(postId),
+      Number(commentId),
+    );
+  }
+
+  @Authorized()
+  @Get({
+    path: '/:postId/comments',
+    description: 'get parent comment of post',
+    response: APIResponseDTO,
+  })
+  getParentCommentsOfPost(
+    @CurrentUser() user: User,
+    @Param('postId') postId: number,
+  ) {
+    return this._postService.getParentCommentsOfPost(user, Number(postId));
+  }
+
+  @Authorized()
+  @Get({
+    path: '/:postId/comment/:commentId',
+    description: 'get nested comment of post based on parentComment',
+    response: APIResponseDTO,
+  })
+  getNestedCommentOfPost(
+    @CurrentUser() user: User,
+    @Param('postId') postId: number,
+    @Param('commentId') commentId: number,
+  ) {
+    return this._postService.getNestedComments(user, postId, commentId);
+  }
+
+  @Authorized()
+  @Post({
+    path: '/like-unlike/comment',
+    description: 'like-unlike comment (toggle)',
+    response: APIResponseDTO,
+  })
+  likeUnlikePostComment(
+    @CurrentUser() user: User,
+    @Body() payload: likeCommentOfPostDto,
+  ) {
+    return this._postService.likeUnlikeComment(user, payload);
   }
 }

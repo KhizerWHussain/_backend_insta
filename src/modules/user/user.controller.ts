@@ -163,4 +163,30 @@ export default class UserController {
   exploreTimeline(@CurrentUser() user: User) {
     return this._userService.exploreTimeline(user);
   }
+
+  @Authorized()
+  @Get({
+    path: '/findUser/:findUserId',
+    description: 'user explore timeline',
+    response: APIResponseDTO,
+  })
+  getOtherUser(
+    @CurrentUser() user: User,
+    @Param('findUserId') findUserId: number,
+  ) {
+    return this._userService.getOtherUser(user, Number(findUserId));
+  }
+
+  @Authorized()
+  @Get({
+    path: '/otherUser/post/:userId',
+    description: 'get posts of other user',
+    response: APIResponseDTO,
+  })
+  getPostOfOtherUser(
+    @CurrentUser() user: User,
+    @Param('userId') userId: number,
+  ) {
+    return this._userService.getPostOfOtherUser(user, Number(userId));
+  }
 }

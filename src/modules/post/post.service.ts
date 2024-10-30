@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import { commentPost, Prisma, PrismaClient, User } from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
@@ -8,6 +8,7 @@ import {
   commentOnPostDto,
   CreatePostDto,
   createSavedPostFolderDto,
+  likeCommentOfPostDto,
   savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
@@ -877,6 +878,241 @@ export class PostService {
     };
   }
 
+  async getParentCommentsOfPost(
+    user: User,
+    postId: number,
+  ): Promise<APIResponseDTO> {
+    await this.checkPostExistOrNot(postId);
+
+    const comments = await this._dbService.commentPost.findMany({
+      where: { postId, parentCommentId: null },
+      select: {
+        id: true,
+        createdAt: true,
+        updatedAt: true,
+        postId: true,
+        commentator: {
+          select: {
+            id: true,
+            fullName: true,
+            profile: {
+              select: {
+                path: true,
+              },
+            },
+          },
+        },
+        comment: true,
+        replies: {
+          select: {
+            id: true,
+            comment: true,
+            likedBy: true,
+            commentator: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: {
+                  select: {
+                    path: true,
+                  },
+                },
+              },
+            },
+            // Include nested replies
+            replies: {
+              select: {
+                id: true,
+                comment: true,
+                likedBy: true,
+                commentator: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    profile: {
+                      select: {
+                        path: true,
+                      },
+                    },
+                  },
+                },
+              },
+              take: 3,
+            },
+          },
+          take: 3,
+        },
+        likedBy: true,
+        _count: {
+          select: {
+            replies: true,
+          },
+        },
+      },
+    });
+
+    const commentsWithLikedByMe = comments.map((comment) => ({
+      ...comment,
+      likedByMe: comment.likedBy.includes(user.id),
+      replies: comment.replies.map((reply) => ({
+        ...reply,
+        likedByMe: reply.likedBy.includes(user.id),
+        replies: reply.replies.map((nestedReply) => ({
+          ...nestedReply,
+          likedByMe: nestedReply.likedBy.includes(user.id),
+        })),
+      })),
+    }));
+
+    return {
+      status: true,
+      message: 'Post comments found',
+      data: commentsWithLikedByMe,
+    };
+  }
+
+  async deleteCommentOnPost(
+    user: User,
+    postId: number,
+    commentId: number,
+  ): Promise<APIResponseDTO> {
+    const commentExist = await this.CheckCommentOnPostExistOrNot(
+      commentId,
+      postId,
+    );
+
+    await this._dbService.$transaction(async (prisma) => {
+      if (commentExist.replies.length > 0) {
+        await prisma.commentPost.deleteMany({
+          where: { parentCommentId: commentId },
+        });
+      }
+
+      await prisma.commentPost.delete({
+        where: { id: commentId },
+      });
+    });
+
+    return {
+      status: true,
+      message: 'comment deleted successfully',
+      data: null,
+    };
+  }
+
+  async likeUnlikeComment(
+    user: User,
+    payload: likeCommentOfPostDto,
+  ): Promise<APIResponseDTO> {
+    await this.checkPostExistOrNot(payload.postId);
+    const { commentId, postId } = payload;
+    const comment = await this.CheckCommentOnPostExistOrNot(commentId, postId);
+
+    if (comment.likedBy.includes(user.id)) {
+      const updatedLikedBy = comment.likedBy.filter((id) => id !== user.id);
+
+      const result = await this._dbService.commentPost.update({
+        where: {
+          id: comment.id,
+        },
+        data: {
+          likedBy: updatedLikedBy,
+        },
+      });
+
+      return {
+        status: true,
+        message: 'Comment unliked successfully',
+        data: null,
+      };
+    }
+
+    await this._dbService.commentPost.update({
+      where: {
+        id: comment.id,
+      },
+      data: {
+        likedBy: [...comment.likedBy, user.id],
+      },
+    });
+
+    return {
+      status: true,
+      message: 'comment liked successfully',
+      data: null,
+    };
+  }
+
+  async getNestedComments(
+    user: User,
+    postId: number,
+    commentId: number,
+  ): Promise<APIResponseDTO> {
+    await this.CheckCommentOnPostExistOrNot(commentId, postId);
+
+    const comments = await this._dbService.commentPost.findMany({
+      where: {
+        parentCommentId: commentId,
+        deletedAt: null,
+      },
+      include: {
+        replies: {
+          include: {
+            commentator: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: {
+                  select: {
+                    path: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        commentator: {
+          select: {
+            id: true,
+            fullName: true,
+            profile: {
+              select: {
+                path: true,
+              },
+            },
+          },
+        },
+        post: {
+          select: {
+            id: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const commentsWithLikedByMe = comments.map((comment: any) => ({
+      ...comment,
+      likedByMe: comment.likedBy.includes(user.id),
+      replies: comment.replies.map((reply: any) => ({
+        ...reply,
+        likedByMe: reply.likedBy.includes(user.id),
+        replies: reply.replies.map((nestedReply: any) => ({
+          ...nestedReply,
+          likedByMe: nestedReply.likedBy.includes(user.id),
+        })),
+      })),
+    }));
+
+    return {
+      status: true,
+      message: 'replies to this comment found',
+      data: commentsWithLikedByMe,
+    };
+  }
+
   private async deletingPostRelatedData(postId: number) {
     return await this._dbService.$transaction(async (prisma) => {
       await prisma.media.deleteMany({
@@ -950,5 +1186,19 @@ export class PostService {
       throw new BadRequestException('post does not exist');
     }
     return findPost;
+  }
+
+  private async CheckCommentOnPostExistOrNot(
+    commentId: number,
+    postId: number,
+  ) {
+    const commentFound = await this._dbService.commentPost.findUnique({
+      where: { id: commentId, postId, deletedAt: null },
+      include: { replies: true, _count: true },
+    });
+    if (!commentFound) {
+      throw new NotFoundException('Comment not found.');
+    }
+    return commentFound;
   }
 }
