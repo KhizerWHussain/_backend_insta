@@ -1,6 +1,11 @@
 import { User } from '@prisma/client';
-import { BadRequestException, Injectable } from '@nestjs/common';
 import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  commentOnPostDto,
   CreatePostDto,
   createSavedPostFolderDto,
   savedPostDTO,
@@ -777,6 +782,8 @@ export class PostService {
         _count: {
           select: {
             likes: true,
+            comments: true,
+            taggedUsers: true,
           },
         },
         caption: true,
@@ -826,6 +833,47 @@ export class PostService {
       status: true,
       message: 'post found successfully',
       data: findPost,
+    };
+  }
+
+  async commentOnPost(
+    user: User,
+    postId: number,
+    payload: commentOnPostDto,
+  ): Promise<APIResponseDTO> {
+    await this.checkPostExistOrNot(postId);
+
+    if (payload.parentCommentId) {
+      const parentCommentExists = await this._dbService.commentPost.findUnique({
+        where: { id: payload.parentCommentId, deletedAt: null },
+      });
+      if (!parentCommentExists) {
+        throw new NotFoundException('parent comment dono exist');
+      }
+    }
+
+    const comment = await this._dbService.$transaction(async (prisma) => {
+      const newComment = await prisma.commentPost.create({
+        data: {
+          comment: payload.comment,
+          commentator: {
+            connect: { id: user.id },
+          },
+          post: {
+            connect: { id: postId },
+          },
+          parentComment: payload?.parentCommentId
+            ? { connect: { id: payload.parentCommentId } }
+            : undefined,
+        },
+      });
+      return newComment;
+    });
+
+    return {
+      status: true,
+      message: 'commented successfully',
+      data: comment,
     };
   }
 
@@ -892,5 +940,15 @@ export class PostService {
     }
 
     return false;
+  }
+
+  private async checkPostExistOrNot(postId: number) {
+    const findPost = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null, feedType: 'ONFEED' },
+    });
+    if (!findPost) {
+      throw new BadRequestException('post does not exist');
+    }
+    return findPost;
   }
 }

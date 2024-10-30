@@ -1,4 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
 import { AudienceType, PostFeedType } from '@prisma/client';
 import {
   IsOptional,
@@ -171,4 +175,17 @@ export class createSavedPostFolderDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+}
+
+export class commentOnPostDto {
+  @ApiProperty({ description: 'parent comment id', required: false })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  parentCommentId?: number;
+
+  @ApiProperty({ description: 'comment', required: true })
+  @IsNotEmpty()
+  @IsString()
+  comment: string;
 }

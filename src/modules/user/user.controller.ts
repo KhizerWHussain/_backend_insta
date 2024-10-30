@@ -1,4 +1,4 @@
-import { Body, Param, Delete, Headers } from '@nestjs/common';
+import { Body, Param, Headers } from '@nestjs/common';
 import { UserService } from './user.service';
 import {
   ApiController,
@@ -152,5 +152,15 @@ export default class UserController {
   })
   deActivateUser(@CurrentUser() user: User) {
     return this._userService.deActivateUser(user);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/explore',
+    description: 'user explore timeline',
+    response: APIResponseDTO,
+  })
+  exploreTimeline(@CurrentUser() user: User) {
+    return this._userService.exploreTimeline(user);
   }
 }

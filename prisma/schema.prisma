@@ -250,7 +250,7 @@ model Post {
 
   savedPosts SavedPost[] @relation("PostSavedPosts")
 
-  commentPost commentPost[]
+  comments commentPost[]
 }
 
 model SavedPost {

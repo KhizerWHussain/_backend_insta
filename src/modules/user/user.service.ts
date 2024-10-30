@@ -595,6 +595,154 @@ export class UserService {
       data: null,
     };
   }
+
+  async exploreTimeline(user: User): Promise<APIResponseDTO> {
+    const { userWhomIFollowIds } = await this.findUsersWhomIAmFollowing({
+      user,
+    });
+    const { findUsersIds } =
+      await this.filterUsersWhoAreNotActive(userWhomIFollowIds);
+
+    const timelinePosts = await this._dbService.post.findMany({
+      where: {
+        creatorId: { in: findUsersIds },
+        deletedAt: null,
+        feedType: 'ONFEED',
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                driveId: true,
+                path: true,
+                extension: true,
+                size: true,
+                meta: true,
+              },
+            },
+            email: true,
+          },
+        },
+        poll: true,
+        media: {
+          select: {
+            id: true,
+            name: true,
+            driveId: true,
+            path: true,
+            extension: true,
+            size: true,
+            meta: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const timelineReels = await this._dbService.reel.findMany({
+      where: {
+        creatorId: { in: findUsersIds },
+        deletedAt: null,
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                driveId: true,
+                path: true,
+                extension: true,
+                size: true,
+                meta: true,
+              },
+            },
+            email: true,
+          },
+        },
+        music: {
+          select: {
+            id: true,
+            name: true,
+            driveId: true,
+            path: true,
+            extension: true,
+            size: true,
+            meta: true,
+            type: true,
+          },
+        },
+        media: {
+          select: {
+            id: true,
+            name: true,
+            driveId: true,
+            path: true,
+            extension: true,
+            size: true,
+            meta: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const combinedTimeline = [
+      ...timelinePosts.map((post) => ({
+        ...post,
+        type: 'POST',
+      })),
+      ...timelineReels.map((reel) => ({
+        ...reel,
+        type: 'REEL',
+      })),
+    ];
+
+    // combinedTimeline.sort((a, b) => {
+    //   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    // });
+
+    return {
+      status: true,
+      message: 'explore timeline found',
+      data: combinedTimeline,
+    };
+  }
+
+  private async filterUsersWhoAreNotActive(userIds: number[]) {
+    const findUsers = await this._dbService.user.findMany({
+      where: {
+        id: { in: userIds },
+        activeStatus: 'ACTIVE',
+        deletedAt: null,
+      },
+    });
+    const findUsersIds = findUsers.map((user) => user.id);
+
+    return {
+      findUsersIds,
+      findUsers,
+    };
+  }
 }
 
 interface UserExistOrNotTypes {

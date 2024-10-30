@@ -1,6 +1,7 @@
 import { Controller, Body, Param } from '@nestjs/common';
 import { PostService } from './post.service';
 import {
+  commentOnPostDto,
   CreatePostDto,
   createSavedPostFolderDto,
   savedPostDTO,
@@ -193,5 +194,19 @@ export class PostController {
   })
   getPostDetails(@CurrentUser() user: User, @Param('postId') postId: number) {
     return this._postService.getPostDetails(user, postId);
+  }
+
+  @Authorized()
+  @Post({
+    path: '/comment/:postId',
+    description: 'comment on post or comment',
+    response: APIResponseDTO,
+  })
+  commentOnPost(
+    @CurrentUser() user: User,
+    @Param('postId') postId: string,
+    @Body() payload: commentOnPostDto,
+  ) {
+    return this._postService.commentOnPost(user, Number(postId), payload);
   }
 }
