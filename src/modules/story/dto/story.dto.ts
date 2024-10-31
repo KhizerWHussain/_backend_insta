@@ -9,7 +9,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  MinLength,
 } from 'class-validator';
 
 export class CreateStoryDto {
@@ -24,7 +23,6 @@ export class CreateStoryDto {
     required: true,
   })
   @ApiPropertyOptional()
-  //   @IsOptional()
   @IsBoolean()
   collage: boolean;
 

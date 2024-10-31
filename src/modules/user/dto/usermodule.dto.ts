@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GenderType } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -114,4 +114,58 @@ export class SigninRequestDTO {
   @IsString()
   @Length(1, 255)
   fcmToken: string;
+}
+
+class WebLinkDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  title: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  url: string;
+}
+
+export default class UpdateMyProfileDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  fullName?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  username?: string;
+
+  @ApiPropertyOptional({ enum: GenderType })
+  @IsEnum(GenderType)
+  @IsString()
+  @IsOptional()
+  gender?: GenderType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  webLink?: WebLinkDto;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  pronouns?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  bio?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  profileMediaId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  profileMusicId?: number;
 }

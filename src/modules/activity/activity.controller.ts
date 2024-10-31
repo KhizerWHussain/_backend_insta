@@ -25,4 +25,14 @@ export class ActivityController {
   getPostsILiked(@CurrentUser() user: User) {
     return this._activityService.getPostsILiked(user);
   }
+
+  @Authorized()
+  @Get({
+    path: '/myComments/all',
+    description: 'get posts which i have commented on',
+    response: APIResponseDTO,
+  })
+  getPostsICommentedOn(@CurrentUser() user: User) {
+    return this._activityService.getPostsICommentedOn(user);
+  }
 }

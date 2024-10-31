@@ -38,6 +38,11 @@ export class UtilityService {
   }: UserExistOrNotTypes) {
     const findUser = await this._dbService.user.findUnique({
       where: { id: userId, deletedAt: null, ...whereConditon },
+      include: {
+        profile: true,
+        webLink: true,
+        profileMusic: true,
+      },
     });
     if (!findUser) {
       throw new BadRequestException(errorMessage || 'user does not exist');
@@ -98,6 +103,88 @@ export class UtilityService {
       userWhomIFollowIds,
       findUsersWhomIAmFollowing,
     };
+  }
+
+  async getBlockedUsers(userId: number) {
+    const usersYouBlocked = await this._dbService.blockedUser.findMany({
+      where: {
+        blockerId: userId,
+        deletedAt: null,
+        userBeingBlocked: { activeStatus: 'ACTIVE' },
+      },
+      select: {
+        id: true,
+        userBeingBlocked: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            username: true,
+            profile: {
+              select: {
+                path: true,
+                id: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const formattedUsers = usersYouBlocked.map(
+      (block) => block.userBeingBlocked,
+    );
+
+    return formattedUsers;
+  }
+
+  async getUserWhoBlockedMe(userId: number) {
+    const usersWhoBlockedYou = await this._dbService.blockedUser.findMany({
+      where: {
+        userBeingBlockedId: userId,
+        deletedAt: null,
+        blocker: { activeStatus: 'ACTIVE' },
+      },
+      select: {
+        id: true,
+        blocker: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            email: true,
+            profile: {
+              select: {
+                id: true,
+                path: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const formattedUsers = usersWhoBlockedYou.map((block) => block.blocker);
+
+    return formattedUsers;
+  }
+
+  async checkMediaExistByMediaId(
+    mediaId: number,
+    whereCondition?: any,
+    errorMessage?: string,
+  ) {
+    const mediaExist = await this._dbService.media.findMany({
+      where: {
+        id: mediaId,
+        deletedAt: null,
+        ...whereCondition,
+      },
+    });
+    if (!mediaExist.length) {
+      throw new BadRequestException(errorMessage || 'media does not exist');
+    }
+    return mediaExist;
   }
 }
 

@@ -7,9 +7,13 @@ import {
   Get,
   Patch,
   Post,
+  Put,
 } from 'src/core/decorators';
 import { APIResponseDTO } from 'src/core/response/response.schema';
-import { SigninRequestDTO, SignupRequestDTO } from './dto/usermodule.dto';
+import UpdateMyProfileDto, {
+  SigninRequestDTO,
+  SignupRequestDTO,
+} from './dto/usermodule.dto';
 import { User } from '@prisma/client';
 
 @ApiController({
@@ -138,4 +142,52 @@ export default class UserController {
   ) {
     return this._userService.getPostOfOtherUser(user, Number(userId));
   }
+
+  @Authorized()
+  @Post({
+    path: '/block/:blockUserId',
+    description: 'block a user',
+    response: APIResponseDTO,
+  })
+  blockUser(
+    @CurrentUser() user: User,
+    @Param('blockUserId') blockUserId: number,
+  ) {
+    return this._userService.blockUser(user, Number(blockUserId));
+  }
+
+  @Authorized()
+  @Post({
+    path: '/unblock/:blockUserId',
+    description: 'unblock block a user',
+    response: APIResponseDTO,
+  })
+  unblockUser(
+    @CurrentUser() user: User,
+    @Param('blockUserId') blockUserId: number,
+  ) {
+    return this._userService.unblockUser(user, Number(blockUserId));
+  }
+
+  @Authorized()
+  @Put({
+    path: '/editProfile',
+    description: 'edit my profile',
+    response: APIResponseDTO,
+  })
+  updateProfile(
+    @CurrentUser() user: User,
+    @Body() payload: UpdateMyProfileDto,
+  ) {
+    return this._userService.editProfile(user, payload);
+  }
+
+  // @Post({
+  //   path: '/logout',
+  //   description: 'Logout',
+  //   response: ForgetPasswordResponseDTO,
+  // })
+  // Logout(@Body() data: LogoutRequestDTO): Promise<LogoutResponseDTO> {
+  //   return this._userService.logout(data);
+  // }
 }

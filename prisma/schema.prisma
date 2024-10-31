@@ -66,6 +66,8 @@ model Media {
   @@unique([creatorId])
 
   Reel Reel[] @relation("reelMusic")
+  
+  creatorProfileMusic User[] @relation("profileMusicMedia")
 }
 
 enum AccountPrivacyType {
@@ -90,6 +92,21 @@ enum UserActiveStatus {
   DEACTIVATED
 }
 
+
+model WebLink {
+  id        Int         @id @default(autoincrement())
+  
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?   @db.Timestamptz()
+
+  title String?
+  url String?
+
+  creator User?  @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  creatorId Int?  @unique
+}
+
 model User {
   id        Int         @id @default(autoincrement())
   username  String      @unique
@@ -100,16 +117,25 @@ model User {
   fullName  String?
   gender    GenderType?
   bio       String?
-  profile   Media?
+
+  profile       Media? 
+
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   deletedAt DateTime?   @db.Timestamptz()
+
+  profileMusic Media? @relation("profileMusicMedia", fields: [profileMusicId], references: [id])
+  profileMusicId Int?
 
   type UserType?
 
   // Followers and Following relationships
   followers UserFollow[] @relation("UserFollowers")
   following UserFollow[] @relation("UserFollowing")
+
+  pronouns String?
+
+  webLink WebLink?
 
   posts   Post[]
   stories Story[]
@@ -388,5 +414,5 @@ model BlockedUser {
   userBeingBlocked    User     @relation("beingBlocked", fields: [userBeingBlockedId], references: [id])
   userBeingBlockedId  Int      // ID of the user who is being blocked
 
-  @@unique([blockerId, userBeingBlockedId]) // Ensure that a user can block another user only once
+  // @@unique([blockerId, userBeingBlockedId]) // Ensure that a user can block another user only once
 }

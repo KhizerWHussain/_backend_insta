@@ -3,10 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { SigninRequestDTO, SignupRequestDTO } from './dto/usermodule.dto';
+import UpdateMyProfileDto, {
+  SigninRequestDTO,
+  SignupRequestDTO,
+} from './dto/usermodule.dto';
 import DatabaseService from 'src/database/database.service';
 import { APIResponseDTO } from 'src/core/response/response.schema';
-import { User, UserType } from '@prisma/client';
+import { RequestStatus, User, UserType } from '@prisma/client';
 import { createFullName } from 'src/util/customFunc';
 import {
   ComparePassword,
@@ -201,6 +204,99 @@ export class UserService {
       status: true,
       message: `user account policy is ${userAfterUpdation.accountPrivacy}`,
       data: userAfterUpdation,
+    };
+  }
+
+  async editProfile(
+    user: User,
+    payload: UpdateMyProfileDto,
+  ): Promise<APIResponseDTO> {
+    if (payload.profileMediaId) {
+      var ProfileMedia = await this._util.checkMediaExistByMediaId(
+        payload.profileMediaId,
+        { type: 'IMAGE' },
+      );
+    }
+
+    if (payload.profileMusicId) {
+      var MusicMedia = await this._util.checkMediaExistByMediaId(
+        payload.profileMusicId,
+        { type: 'AUDIO' },
+        'notes does not exist',
+      );
+    }
+
+    if (payload.username) {
+      const userWithThisUsernameCount = await this._dbService.user.count({
+        where: { username: payload.username, NOT: { id: user.id } },
+      });
+      if (userWithThisUsernameCount > 0) {
+        throw new BadRequestException(
+          'user with this username already exist, choose another',
+        );
+      }
+    }
+
+    const checkUser = await this._util.checkUserExistOrNot({ userId: user.id });
+
+    await this._dbService.$transaction(async (prisma) => {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          fullName: payload.fullName || checkUser.fullName,
+          username: payload.username || checkUser.username,
+          bio: payload.bio || checkUser.bio,
+          gender: payload.gender || checkUser.gender,
+          pronouns: payload.pronouns || checkUser.pronouns,
+        },
+      });
+
+      if (
+        payload.profileMediaId &&
+        ProfileMedia &&
+        ProfileMedia[0]?.creatorId === user.id
+      ) {
+        await prisma.media.update({
+          where: { id: payload.profileMediaId },
+          data: {
+            creatorId: user.id,
+          },
+        });
+      }
+
+      if (
+        payload.profileMusicId &&
+        MusicMedia &&
+        MusicMedia[0]?.creatorId === user.id
+      ) {
+        await prisma.media.update({
+          where: { id: payload.profileMusicId },
+          data: {
+            creatorId: user.id,
+          },
+        });
+      }
+
+      if (payload.webLink) {
+        await prisma.webLink.upsert({
+          where: { creatorId: user.id },
+          create: {
+            title: payload.webLink.title,
+            url: payload.webLink.url,
+            creatorId: user.id,
+          },
+          update: {
+            title: payload.webLink.title,
+            url: payload.webLink.url,
+          },
+        });
+      }
+    });
+
+    return {
+      status: true,
+      message: 'profile updated successfully',
+      data: null,
     };
   }
 
@@ -675,6 +771,89 @@ export class UserService {
       status: true,
       message: 'explore timeline found',
       data: combinedTimeline,
+    };
+  }
+
+  async blockUser(user: User, blockUserId: number): Promise<APIResponseDTO> {
+    await this._util.checkUserExistOrNot({ userId: blockUserId });
+
+    const userAlreadyBlocked = await this._dbService.blockedUser.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, userBeingBlockedId: blockUserId },
+          { blockerId: blockUserId, userBeingBlockedId: user.id },
+        ],
+        deletedAt: null,
+      },
+    });
+
+    if (userAlreadyBlocked) {
+      throw new BadRequestException('User already blocked.');
+    }
+
+    const followRequest = await this._dbService.followRequest.findFirst({
+      where: { requesterId: blockUserId, receiverId: user.id },
+      select: { id: true },
+    });
+
+    const result = await this._dbService.$transaction(async (prisma) => {
+      if (followRequest) {
+        await prisma.followRequest.update({
+          where: { id: followRequest.id },
+          data: { status: RequestStatus.DECLINED, deletedAt: new Date() },
+        });
+      }
+
+      await prisma.userFollow.deleteMany({
+        where: {
+          OR: [
+            { followerId: user.id, followingId: blockUserId },
+            { followerId: blockUserId, followingId: user.id },
+          ],
+        },
+      });
+
+      const blockUser = await prisma.blockedUser.create({
+        data: {
+          blocker: { connect: { id: user.id } },
+          userBeingBlocked: { connect: { id: blockUserId } },
+        },
+        include: {
+          blocker: true,
+          userBeingBlocked: true,
+        },
+      });
+
+      return blockUser;
+    });
+
+    return {
+      status: true,
+      message: 'user has been blocked',
+      data: result,
+    };
+  }
+
+  async unblockUser(user: User, blockUserId: number): Promise<APIResponseDTO> {
+    const blockExist = await this._dbService.blockedUser.findFirst({
+      where: {
+        blockerId: user.id,
+        userBeingBlockedId: blockUserId,
+        deletedAt: null,
+      },
+    });
+
+    if (!blockExist) {
+      throw new BadRequestException('User not blocked');
+    }
+
+    await this._dbService.blockedUser.delete({
+      where: { id: blockExist.id },
+    });
+    return {
+      status: true,
+      message: 'User unblocked',
+      data: null,
     };
   }
 }

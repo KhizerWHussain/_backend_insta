@@ -100,4 +100,97 @@ export class ActivityService {
       data: findAllPostILiked,
     };
   }
+
+  async getPostsICommentedOn(user: User): Promise<APIResponseDTO> {
+    await this._util.checkUserExistOrNot({ userId: user.id });
+
+    // Find all post IDs where the user has commented
+    const commentedPosts = await this._db.commentPost.findMany({
+      where: {
+        commentatorId: user.id,
+        deletedAt: null,
+      },
+      select: {
+        postId: true,
+        parentCommentId: true,
+        id: true,
+      },
+      distinct: ['postId'],
+    });
+
+    const commentedPostIds = commentedPosts.map((comment) => comment.postId);
+
+    // Fetch posts where the user has commented
+    const findAllPostsICommentedOn = await this._db.post.findMany({
+      where: {
+        id: { in: commentedPostIds },
+        deletedAt: null,
+        feedType: 'ONFEED',
+        creator: { activeStatus: 'ACTIVE' },
+      },
+      select: {
+        id: true,
+        caption: true,
+        createdAt: true,
+        updatedAt: true,
+        creator: {
+          select: {
+            id: true,
+            username: true,
+            profile: {
+              select: {
+                id: true,
+                driveId: true,
+                path: true,
+              },
+            },
+          },
+        },
+        media: {
+          select: {
+            id: true,
+            driveId: true,
+            path: true,
+            name: true,
+            type: true,
+          },
+        },
+        location: true,
+        music: {
+          select: {
+            id: true,
+            driveId: true,
+            path: true,
+            meta: true,
+            name: true,
+            size: true,
+            extension: true,
+            type: true,
+          },
+        },
+        comments: {
+          where: {
+            commentatorId: user.id,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            comment: true,
+            createdAt: true,
+            parentCommentId: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+          take: 1, // Take the top-most parent comment
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'posts in which i have commented found',
+      data: findAllPostsICommentedOn,
+    };
+  }
 }
