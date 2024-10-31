@@ -7,10 +7,10 @@ import {
   Get,
   Patch,
   Post,
-  Put,
 } from 'src/core/decorators';
 import { APIResponseDTO } from 'src/core/response/response.schema';
-import UpdateMyProfileDto, {
+import {
+  createNoteDto,
   SigninRequestDTO,
   SignupRequestDTO,
 } from './dto/usermodule.dto';
@@ -145,49 +145,31 @@ export default class UserController {
 
   @Authorized()
   @Post({
-    path: '/block/:blockUserId',
-    description: 'block a user',
+    path: '/create/note',
+    description: 'create profile music - note',
     response: APIResponseDTO,
   })
-  blockUser(
-    @CurrentUser() user: User,
-    @Param('blockUserId') blockUserId: number,
-  ) {
-    return this._userService.blockUser(user, Number(blockUserId));
+  createNote(@CurrentUser() user: User, @Body() payload: createNoteDto) {
+    return this._userService.createNote(user.id, payload);
   }
 
   @Authorized()
-  @Post({
-    path: '/unblock/:blockUserId',
-    description: 'unblock block a user',
+  @Get({
+    path: '/notes/feed',
+    description: 'get my and user i follow notes',
     response: APIResponseDTO,
   })
-  unblockUser(
-    @CurrentUser() user: User,
-    @Param('blockUserId') blockUserId: number,
-  ) {
-    return this._userService.unblockUser(user, Number(blockUserId));
+  getNotesFeed(@CurrentUser() user: User) {
+    return this._userService.getNotesFeed(user);
   }
 
   @Authorized()
-  @Put({
-    path: '/editProfile',
-    description: 'edit my profile',
+  @Get({
+    path: '/reels/feed',
+    description: 'get my and user i follow reels on feed',
     response: APIResponseDTO,
   })
-  updateProfile(
-    @CurrentUser() user: User,
-    @Body() payload: UpdateMyProfileDto,
-  ) {
-    return this._userService.editProfile(user, payload);
+  getReelsOnFeed(@CurrentUser() user: User) {
+    return this._userService.getReelsOnFeed(user);
   }
-
-  // @Post({
-  //   path: '/logout',
-  //   description: 'Logout',
-  //   response: ForgetPasswordResponseDTO,
-  // })
-  // Logout(@Body() data: LogoutRequestDTO): Promise<LogoutResponseDTO> {
-  //   return this._userService.logout(data);
-  // }
 }

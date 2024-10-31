@@ -67,7 +67,9 @@ model Media {
 
   Reel Reel[] @relation("reelMusic")
   
-  creatorProfileMusic User[] @relation("profileMusicMedia")
+  noteImage Notes[] @relation("noteImageMedia")
+  
+  noteMusic Notes[] @relation("noteMusic")
 }
 
 enum AccountPrivacyType {
@@ -107,6 +109,25 @@ model WebLink {
   creatorId Int?  @unique
 }
 
+
+model Notes {
+  id        Int         @id @default(autoincrement())
+  
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?   @db.Timestamptz()
+
+  noteImageMedia Media? @relation("noteImageMedia", fields: [noteImageMediaId], references: [id])
+  noteImageMediaId Int?
+
+  noteMusic Media?  @relation("noteMusic", fields: [noteMusicId], references: [id])
+  noteMusicId Int?
+
+  creator User?  @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  creatorId Int?  @unique
+}
+
+
 model User {
   id        Int         @id @default(autoincrement())
   username  String      @unique
@@ -123,9 +144,6 @@ model User {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   deletedAt DateTime?   @db.Timestamptz()
-
-  profileMusic Media? @relation("profileMusicMedia", fields: [profileMusicId], references: [id])
-  profileMusicId Int?
 
   type UserType?
 
@@ -166,6 +184,7 @@ model User {
 
   blockedByUsers   BlockedUser[] @relation("beingBlocked")
 
+  Notes Notes[]
 }
 
 model StoryView {

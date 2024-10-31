@@ -41,7 +41,6 @@ export class UtilityService {
       include: {
         profile: true,
         webLink: true,
-        profileMusic: true,
       },
     });
     if (!findUser) {
@@ -185,6 +184,60 @@ export class UtilityService {
       throw new BadRequestException(errorMessage || 'media does not exist');
     }
     return mediaExist;
+  }
+
+  async findFirstMedia(
+    mediaId: number,
+    whereCondition?: any,
+    errorMessage?: string,
+  ) {
+    const mediaExist = await this._dbService.media.findFirst({
+      where: {
+        id: mediaId,
+        deletedAt: null,
+        ...whereCondition,
+      },
+    });
+    if (!mediaExist) {
+      throw new BadRequestException(errorMessage || 'media does not exist');
+    }
+    return mediaExist;
+  }
+
+  async findUserNote(
+    userId: number,
+    { throwErrorIfNotFound = false } = {},
+  ): Promise<any> {
+    const note = await this._dbService.notes.findFirst({
+      where: { creatorId: userId, deletedAt: null },
+      select: {
+        id: true,
+        createdAt: true,
+        updatedAt: true,
+        creatorId: true,
+        noteImageMedia: {
+          select: {
+            id: true,
+            name: true,
+            size: true,
+            path: true,
+          },
+        },
+        noteMusic: {
+          select: {
+            id: true,
+            name: true,
+            path: true,
+            size: true,
+            type: true,
+          },
+        },
+      },
+    });
+    if (!note && throwErrorIfNotFound === true) {
+      throw new NotFoundException('user note not found');
+    }
+    return note;
   }
 }
 

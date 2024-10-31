@@ -11,6 +11,47 @@ export class FollowService {
     private readonly _util: UtilityService,
   ) {}
 
+  async followAccount(
+    user: User,
+    followUserId: number,
+  ): Promise<APIResponseDTO> {
+    const toBeFollowedUser = await this._util.checkUserExistOrNot({
+      userId: followUserId,
+    });
+
+    if (user.id === followUserId) {
+      throw new BadRequestException('you cannot follow yourselve');
+    }
+
+    if (toBeFollowedUser.accountPrivacy === 'PRIVATE') {
+      return await this.sendFollowRequest(user, followUserId);
+    }
+
+    const followRelation = await this._db.userFollow.findFirst({
+      where: {
+        followerId: user.id, // The user who wants to follow
+        followingId: followUserId, // The user to be followed
+      },
+    });
+
+    if (followRelation) {
+      throw new BadRequestException('you are already following the user');
+    }
+
+    const createFollower = await this._db.userFollow.create({
+      data: {
+        follower: { connect: { id: user.id } },
+        following: { connect: { id: followUserId } },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'account has been followed',
+      data: createFollower,
+    };
+  }
+
   async sendFollowRequest(
     user: User,
     recieverId: number,

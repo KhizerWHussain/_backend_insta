@@ -167,5 +167,22 @@ export default class UpdateMyProfileDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
-  profileMusicId?: number;
+  noteMusicId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  noteImageId?: number;
+}
+
+export class createNoteDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  noteMusicId?: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  noteImageId?: number;
 }

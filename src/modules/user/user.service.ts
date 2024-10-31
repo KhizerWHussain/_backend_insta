@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import UpdateMyProfileDto, {
+  createNoteDto,
   SigninRequestDTO,
   SignupRequestDTO,
 } from './dto/usermodule.dto';
@@ -218,12 +219,16 @@ export class UserService {
       );
     }
 
-    if (payload.profileMusicId) {
-      var MusicMedia = await this._util.checkMediaExistByMediaId(
-        payload.profileMusicId,
+    if (payload.noteMusicId) {
+      var MusicMedia = await this._util.findFirstMedia(
+        payload.noteMusicId,
         { type: 'AUDIO' },
         'notes does not exist',
       );
+    }
+
+    if (payload.noteImageId) {
+      var NoteImage = await this._util.findFirstMedia(payload.noteImageId);
     }
 
     if (payload.username) {
@@ -264,18 +269,18 @@ export class UserService {
         });
       }
 
-      if (
-        payload.profileMusicId &&
-        MusicMedia &&
-        MusicMedia[0]?.creatorId === user.id
-      ) {
-        await prisma.media.update({
-          where: { id: payload.profileMusicId },
-          data: {
-            creatorId: user.id,
-          },
-        });
-      }
+      await prisma.notes.upsert({
+        where: { creatorId: user.id },
+        create: {
+          noteMusicId: MusicMedia?.id,
+          noteImageMediaId: NoteImage?.id,
+          creatorId: user.id,
+        },
+        update: {
+          noteMusicId: MusicMedia?.id,
+          noteImageMediaId: NoteImage?.id,
+        },
+      });
 
       if (payload.webLink) {
         await prisma.webLink.upsert({
@@ -854,6 +859,153 @@ export class UserService {
       status: true,
       message: 'User unblocked',
       data: null,
+    };
+  }
+
+  async createNote(
+    userId: number,
+    payload: createNoteDto,
+  ): Promise<APIResponseDTO> {
+    const NoteMuic = await this._util.findFirstMedia(
+      payload.noteMusicId,
+      { type: 'AUDIO' },
+      'notes does not exist',
+    );
+    const NoteImage = await this._util.findFirstMedia(payload.noteImageId);
+
+    const note = await this._dbService.notes.upsert({
+      where: { creatorId: userId },
+      create: {
+        noteMusic: { connect: { id: NoteMuic.id } },
+        noteImageMedia: { connect: { id: NoteImage.id } },
+        creator: { connect: { id: userId } },
+      },
+      update: {},
+    });
+
+    return {
+      status: true,
+      message: note
+        ? 'Note already existed, no new note created.'
+        : 'Note created successfully',
+      data: note,
+    };
+  }
+
+  async getNotesFeed(user: User): Promise<APIResponseDTO> {
+    const { userWhomIFollowIds } = await this._util.findUsersWhomIAmFollowing({
+      user,
+    });
+
+    const allIds: number[] = [user.id, ...userWhomIFollowIds];
+
+    const findFeedNotes = await this._dbService.notes.findMany({
+      where: {
+        creatorId: {
+          in: allIds,
+        },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        updatedAt: true,
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            pronouns: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                size: true,
+                path: true,
+              },
+            },
+          },
+        },
+        noteMusic: {
+          select: {
+            id: true,
+            name: true,
+            size: true,
+            path: true,
+          },
+        },
+        noteImageMedia: {
+          select: {
+            id: true,
+            name: true,
+            size: true,
+            path: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'notes found',
+      data: findFeedNotes,
+    };
+  }
+
+  async getReelsOnFeed(user: User): Promise<APIResponseDTO> {
+    const { userWhomIFollowIds } = await this._util.findUsersWhomIAmFollowing({
+      user,
+    });
+
+    const allIds: number[] = [user.id, ...userWhomIFollowIds];
+
+    const findAllReels = await this._dbService.reel.findMany({
+      where: {
+        creatorId: {
+          in: allIds,
+        },
+        deletedAt: null,
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                path: true,
+                size: true,
+              },
+            },
+          },
+        },
+        media: {
+          select: {
+            id: true,
+            name: true,
+            path: true,
+            size: true,
+          },
+        },
+        music: {
+          select: {
+            id: true,
+            name: true,
+            path: true,
+            size: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'notes found',
+      data: findAllReels,
     };
   }
 }

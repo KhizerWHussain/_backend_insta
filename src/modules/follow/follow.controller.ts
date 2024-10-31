@@ -33,6 +33,16 @@ export class FollowController {
   }
 
   @Authorized()
+  @Post({
+    path: '/follow/:userId',
+    description: 'follow user account',
+    response: APIResponseDTO,
+  })
+  followAccount(@CurrentUser() user: User, @Param('userId') userId: number) {
+    return this._followService.followAccount(user, Number(userId));
+  }
+
+  @Authorized()
   @Patch({
     path: '/acceptRequst/:requestId',
     description: 'accept friend request',
