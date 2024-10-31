@@ -1,5 +1,4 @@
 import { FollowService } from './follow.service';
-import { CreateFollowDto } from './dto/follow.dto';
 import {
   ApiController,
   Authorized,
@@ -8,7 +7,7 @@ import {
   Patch,
   Post,
 } from 'src/core/decorators';
-import { Body, Param } from '@nestjs/common';
+import { Param } from '@nestjs/common';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { User } from '@prisma/client';
 

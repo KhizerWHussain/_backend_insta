@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateFollowDto } from './dto/follow.dto';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { RequestStatus, User } from '@prisma/client';
 import DatabaseService from 'src/database/database.service';
