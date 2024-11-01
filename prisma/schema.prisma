@@ -428,10 +428,8 @@ model BlockedUser {
   deletedAt DateTime? @db.Timestamptz()
 
   blocker    User     @relation("blocker", fields: [blockerId], references: [id])
-  blockerId  Int      // ID of the user who is blocking
+  blockerId  Int     
 
   userBeingBlocked    User     @relation("beingBlocked", fields: [userBeingBlockedId], references: [id])
-  userBeingBlockedId  Int      // ID of the user who is being blocked
-
-  // @@unique([blockerId, userBeingBlockedId]) // Ensure that a user can block another user only once
+  userBeingBlockedId  Int    
 }

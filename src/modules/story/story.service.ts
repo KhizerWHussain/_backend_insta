@@ -11,6 +11,7 @@ import { APIResponseDTO } from 'src/core/response/response.schema';
 import { MediaService } from '../media/media.service';
 import { ExcludeFields } from 'src/helpers/util.helper';
 import { UtilityService } from 'src/util/utility.service';
+import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class StoryService {
@@ -18,6 +19,7 @@ export class StoryService {
     private readonly _dbService: DatabaseService,
     private readonly _mediaService: MediaService,
     private readonly _util: UtilityService,
+    private readonly _redis_cache: RedisService,
   ) {}
 
   async createStory(
@@ -72,7 +74,35 @@ export class StoryService {
   }
 
   async getMyStories(user: User): Promise<APIResponseDTO> {
-    await this._util.checkUserExistOrNot({ userId: user.id });
+    // await this._util.checkUserExistOrNot({ userId: user.id });
+
+    const storyKey = `story_${user.id}_*`;
+    const cachedStories = await this._redis_cache.keys(storyKey);
+
+    console.log('cachedStories ==>', cachedStories);
+
+    if (cachedStories.length > 0) {
+      const stories = await Promise.all(
+        cachedStories.map(async (key) => {
+          const storyData = await this._redis_cache.get(key);
+          return storyData;
+        }),
+      );
+
+      return {
+        status: true,
+        message: 'your stories found',
+        data: stories,
+      };
+    }
+
+    // if (cachedStories) {
+    //   return {
+    //     status: true,
+    //     message: 'your stories found (from cache)',
+    //     // data: JSON.parse(cachedStories),
+    //   };
+    // }
 
     const findMyStories = await this._dbService.story.findMany({
       where: { creatorId: user.id, deletedAt: null },
@@ -265,6 +295,9 @@ export class StoryService {
       await prisma.story.delete({
         where: { id: story.id },
       });
+
+      const storyKey = `story_${userId}_${story.id}`;
+      await this._redis_cache.delete(storyKey);
     });
 
     return {
@@ -275,11 +308,9 @@ export class StoryService {
   }
 
   async viewStory(user: User, storyId: number): Promise<APIResponseDTO> {
-    const findStory = await this.findStoryById(storyId);
-
-    if (!findStory) {
-      throw new BadRequestException('Story does not exist');
-    }
+    const findStory = await this.findStoryById(storyId, {
+      throwErrorIfNotFound: true,
+    });
 
     await this._dbService.$transaction(async (prisma) => {
       if (user.id === findStory.creatorId && !findStory.seenByCreator) {
@@ -298,9 +329,9 @@ export class StoryService {
         },
       });
 
-      if (existingView) {
-        throw new BadRequestException('you have already viewed the story');
-      }
+      // if (existingView) {
+      //   throw new BadRequestException('you have already viewed the story');
+      // }
 
       if (!existingView) {
         await prisma.storyView.create({
@@ -516,11 +547,17 @@ export class StoryService {
     }, []);
   }
 
-  private async findStoryById(id: number) {
+  private async findStoryById(
+    id: number,
+    { throwErrorIfNotFound = false } = {},
+  ) {
     const storyFound = await this._dbService.story.findUnique({
       where: { id, deletedAt: null },
     });
-    return storyFound;
+    if (!storyFound && throwErrorIfNotFound === true) {
+      throw new BadRequestException('story does not exist');
+    }
+    return !storyFound && throwErrorIfNotFound ? null : storyFound;
   }
 
   private async createMultipleStories({
@@ -545,6 +582,11 @@ export class StoryService {
           });
         });
         const stories = await Promise.all(createStoriesPromises);
+        for (const story of stories) {
+          const expTime = await this._util.createExpiryTime();
+          const storyKey = `story_${userId}_${story.id}`;
+          await this._redis_cache.set(storyKey, story, 'EX', expTime);
+        }
         return stories;
       },
     );
@@ -576,6 +618,11 @@ export class StoryService {
           },
         },
       });
+
+      const expTime = await this._util.createExpiryTime();
+      const storyKey = `story_${userId}_${story.id}`;
+      await this._redis_cache.set(storyKey, story, 'EX', expTime);
+
       return story;
     });
 

@@ -87,7 +87,6 @@ export class UserService {
         await prisma.media.update({
           where: { id: payload.profileMediaId },
           data: {
-            // creator: { connect: { id: createdUser.id } },
             creatorId: createdUser.id,
           },
         });
@@ -96,7 +95,7 @@ export class UserService {
       return createdUser;
     });
 
-    const token = await this._authService.CreateSession(newUser.id);
+    const token = await this._authService.createSession(newUser.id);
 
     return {
       status: true,
@@ -133,7 +132,7 @@ export class UserService {
       throw new BadRequestException('invalid credentials');
     }
 
-    const token = await this._authService.CreateSession(
+    const token = await this._authService.createSession(
       findUserByUsernameOrEmail.id,
     );
 
@@ -153,6 +152,29 @@ export class UserService {
             posts: true,
             followers: true,
             following: true,
+          },
+        },
+        Notes: {
+          select: {
+            id: true,
+            createdAt: true,
+            updatedAt: true,
+            noteMusic: {
+              select: {
+                id: true,
+                path: true,
+                name: true,
+                size: true,
+              },
+            },
+            noteImageMedia: {
+              select: {
+                id: true,
+                path: true,
+                name: true,
+                size: true,
+              },
+            },
           },
         },
         profile: true,

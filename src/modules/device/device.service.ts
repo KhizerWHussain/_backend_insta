@@ -8,7 +8,7 @@ import CreateDeviceResponseDTO from './dto/response/create.response';
 export default class DeviceService {
   constructor(private _dbService: DatabaseService) {}
 
-  async Create(data: CreateDeviceRequestDTO): Promise<CreateDeviceResponseDTO> {
+  async create(data: CreateDeviceRequestDTO): Promise<CreateDeviceResponseDTO> {
     return await this._dbService.device.create({
       data: {
         type: data.type,
@@ -19,7 +19,7 @@ export default class DeviceService {
     });
   }
 
-  async FindById(id: number): Promise<CreateDeviceResponseDTO> {
+  async findById(id: number): Promise<CreateDeviceResponseDTO> {
     const device = await this._dbService.device.findFirst({ where: { id } });
     if (!device) {
       throw new NotFoundException('User device not found');
@@ -27,7 +27,7 @@ export default class DeviceService {
     return device;
   }
 
-  async UpdateFCMToken(
+  async updateFcm(
     authToken: string,
     fcmToken: string,
   ): Promise<MessageResponseDTO> {
@@ -47,7 +47,7 @@ export default class DeviceService {
     return { message: 'Success' };
   }
 
-  async Delete(authToken: string): Promise<MessageResponseDTO> {
+  async delete(authToken: string): Promise<MessageResponseDTO> {
     const device = await this._dbService.device.findFirst({
       where: { authToken },
       select: { id: true },
@@ -64,7 +64,7 @@ export default class DeviceService {
     return { message: 'Success' };
   }
 
-  async DeleteAll(userId: number): Promise<MessageResponseDTO> {
+  async deleteAll(userId: number): Promise<MessageResponseDTO> {
     const result = await this._dbService.device.deleteMany({
       where: { userId },
     });

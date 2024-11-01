@@ -20,6 +20,6 @@ export default class DeviceController {
   Create(
     @Body() data: CreateDeviceRequestDTO,
   ): Promise<CreateDeviceResponseDTO> {
-    return this._deviceService.Create(data);
+    return this._deviceService.create(data);
   }
 }

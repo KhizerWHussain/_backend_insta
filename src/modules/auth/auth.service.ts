@@ -3,6 +3,8 @@ import { v4 as uuid } from 'uuid';
 import DatabaseService from '../../database/database.service';
 import { DeviceType, User } from '@prisma/client';
 import DeviceService from '../device/device.service';
+import { RedisService } from 'src/redis/redis.service';
+import { UtilityService } from 'src/util/utility.service';
 
 export class AuthModel {
   id: number;
@@ -15,66 +17,97 @@ export class AuthModel {
     }
   }
 }
-
 @Injectable()
 export default class AuthService {
   constructor(
-    private _databaseService: DatabaseService,
-    private _deviceService: DeviceService,
+    private readonly _db: DatabaseService,
+    private readonly _device: DeviceService,
+    private readonly _redis: RedisService,
+    private readonly _util: UtilityService,
   ) {}
 
-  private _generateToken() {
+  private createToken() {
     return uuid();
   }
 
-  async CreateSession(
+  async createSession(
     userId: number,
     fcmToken?: string,
     type: DeviceType = 'ANDROID',
   ): Promise<string> {
-    const Token = this._generateToken();
-    // const Auth = new AuthModel(userId);
-    const currentUserDevice = await this._databaseService.device.findFirst({
-      where: { userId: userId },
-      select: { id: true, authToken: true },
+    const loginUserToken = await this._db.device.findFirst({
+      where: { userId: userId, deletedAt: null },
+      select: { authToken: true },
     });
-    if (currentUserDevice) {
-      await this.DestroySession(currentUserDevice.authToken);
+
+    if (loginUserToken) {
+      await this.destroySession(loginUserToken.authToken);
     }
-    await this._deviceService.Create({
+
+    const uniqueToken = this.createToken();
+
+    const loginExpiry_6hours = await this._util.createExpiryTime({
+      time: 6,
+      lap: 'hours',
+    });
+
+    const Auth = new AuthModel(userId);
+
+    await this._redis.set(uniqueToken, Auth, 'EX', loginExpiry_6hours);
+    await this._device.create({
       type,
       userId,
-      authToken: Token,
+      authToken: uniqueToken,
       fcmToken,
     });
-    return Token;
-  }
-  async GetSession(token: string): Promise<AuthModel> {
-    const deviceSession = await this._databaseService.device.findFirst({
-      where: { authToken: token, deletedAt: null },
-      select: { userId: true },
-    });
-
-    if (!deviceSession) {
-      throw new UnauthorizedException('Session not found');
-    }
-
-    const user = await this._databaseService.user.findFirst({
-      where: { id: deviceSession.userId },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    const auth: AuthModel = { id: user.id, user: user };
-    return auth;
+    return uniqueToken;
   }
 
-  async DestroySession(token: string) {
-    await this._deviceService.Delete(token);
+  async getSession(token: string): Promise<AuthModel> {
+    const redisAuth: AuthModel = await this._redis.get(token);
+    if (!redisAuth) return null;
+
+    redisAuth.user = await this._db.user.findFirst({
+      where: { id: redisAuth['id'] },
+    });
+
+    return redisAuth;
+
+    // const deviceSession = await this._db.device.findFirst({
+    //   where: { authToken: token, deletedAt: null },
+    //   select: { userId: true },
+    // });
+
+    // if (!deviceSession) {
+    //   throw new UnauthorizedException('Session not found');
+    // }
+
+    // const user = await this._db.user.findFirst({
+    //   where: { id: deviceSession.userId },
+    // });
+
+    // if (!user) {
+    //   throw new UnauthorizedException('User not found');
+    // }
+
+    // const auth: AuthModel = { id: user.id, user: user };
+    // return auth;
+  }
+
+  async destroySession(token: string) {
+    // const redisAuth: AuthModel = await this._redis.get(token);
+    // if (!redisAuth) return null;
+
+    // console.log('token ==>', token);
+
+    await this._redis.delete(token);
+    await this._device.delete(token);
+
     return true;
   }
 
-  async RefreshTokenTime(token: string) {}
+  async RefreshTokenTime(token: string) {
+    const redisAuth: AuthModel = await this._redis.get(token);
+    await this._redis.set(token, redisAuth, process.env.TOKEN_EXPIRATION);
+  }
 }

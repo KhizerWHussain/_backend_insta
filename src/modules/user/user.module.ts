@@ -6,6 +6,7 @@ import AuthModule from '../auth/auth.module';
 import { MediaModule } from '../media/media.module';
 import { StoryModule } from '../story/story.module';
 import { UtilityModule } from 'src/util/utility.module';
+import { RedisModule } from 'src/redis/redis.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { UtilityModule } from 'src/util/utility.module';
     MediaModule,
     StoryModule,
     UtilityModule,
+    RedisModule,
   ],
   controllers: [UserController],
   providers: [UserService],

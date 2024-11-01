@@ -35,7 +35,7 @@ export default class AuthGuard implements CanActivate {
       }
 
       // Validate the token and get the user session
-      let auth: AuthModel = await this._authService.GetSession(token);
+      let auth: AuthModel = await this._authService.getSession(token);
       if (!auth || !auth.user) {
         throw new UnauthorizedException('Invalid token or user session');
       }

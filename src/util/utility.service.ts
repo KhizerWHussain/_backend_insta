@@ -4,11 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { User } from '@prisma/client';
+import * as moment from 'moment';
 import DatabaseService from 'src/database/database.service';
 
 @Injectable()
 export class UtilityService {
   constructor(private readonly _dbService: DatabaseService) {}
+
+  async createExpiryTime({ time = 24, lap = 'hour' }: expiryTimeProp = {}) {
+    // return moment().add(time, lap).milliseconds(); // 24 hours from now
+    return moment.duration(time, lap).asSeconds();
+  }
 
   async checkPostExistOrNot(postId: number) {
     const findPost = await this._dbService.post.findUnique({
@@ -249,4 +255,10 @@ interface UserExistOrNotTypes {
 
 interface findUserWhomIFollowProp {
   user: User;
+}
+
+interface expiryTimeProp {
+  time?: number;
+  // lap?: 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond';
+  lap?: moment.unitOfTime.DurationConstructor;
 }

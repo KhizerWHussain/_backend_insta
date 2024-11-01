@@ -1,4 +1,4 @@
-import { NestFactory } from '@nestjs/core';
+import { LazyModuleLoader, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from '@nestjs/common';
@@ -9,6 +9,7 @@ async function bootstrap() {
     rawBody: true,
     cors: true,
   });
+
   app.setGlobalPrefix('/api/v1');
   app.set('trust proxy', 1);
   InjectPipes(app);
