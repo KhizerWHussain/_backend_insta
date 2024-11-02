@@ -16,6 +16,7 @@ import AuthModule from './modules/auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { SearchModule } from './modules/search/search.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SearchModule } from './modules/search/search.module';
     ActivityModule,
     NotificationModule,
     SearchModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AuthGuard }],

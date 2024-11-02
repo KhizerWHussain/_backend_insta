@@ -143,6 +143,12 @@ export class UtilityService {
     return formattedUsers;
   }
 
+  async getMyBlockedUserIds(userId: number): Promise<number[]> {
+    const blockUsers = await this.getBlockedUsers(userId);
+    const ids = blockUsers.map((user) => user.id);
+    return ids;
+  }
+
   async getUserWhoBlockedMe(userId: number) {
     const usersWhoBlockedYou = await this._dbService.blockedUser.findMany({
       where: {
@@ -172,6 +178,25 @@ export class UtilityService {
     const formattedUsers = usersWhoBlockedYou.map((block) => block.blocker);
 
     return formattedUsers;
+  }
+
+  async getUserWhoBlockMeIds(userId: number): Promise<number[]> {
+    const blockedMeUsers = await this.getUserWhoBlockedMe(userId);
+    const ids = blockedMeUsers.map((user) => user.id);
+    return ids;
+  }
+
+  async findBlockOnBothSides(myId: number, userId: number) {
+    const blockOnBothSides = await this._dbService.blockedUser.findFirst({
+      where: {
+        OR: [
+          { userBeingBlockedId: myId, blockerId: userId },
+          { userBeingBlockedId: userId, blockerId: myId },
+        ],
+        deletedAt: null,
+      },
+    });
+    return blockOnBothSides;
   }
 
   async checkMediaExistByMediaId(

@@ -992,7 +992,7 @@
     multer "1.4.2"
     tslib "2.2.0"
 
-"@nestjs/platform-socket.io@^10.4.5":
+"@nestjs/platform-socket.io@^10.4.6":
   version "10.4.6"
   resolved "https://registry.yarnpkg.com/@nestjs/platform-socket.io/-/platform-socket.io-10.4.6.tgz#06941e3f6d85c6b2f1a88e816c562071cd056080"
   integrity sha512-lGv99O7C00wtnGq9M0mcwrOpH2qmuqAXQyvo/d/I7rmaf3OO1Sg8qWDLAnPKHdaumwOL2mnET3kvCJ06MaL6WA==
@@ -1036,6 +1036,15 @@
   resolved "https://registry.yarnpkg.com/@nestjs/testing/-/testing-10.4.6.tgz#3797a40c0628788e381f299d3c72acac364ca4ef"
   integrity sha512-aiDicKhlGibVGNYuew399H5qZZXaseOBT/BS+ERJxxCmco7ZdAqaujsNjSaSbTK9ojDPf27crLT0C4opjqJe3A==
   dependencies:
+    tslib "2.7.0"
+
+"@nestjs/websockets@^10.4.6":
+  version "10.4.6"
+  resolved "https://registry.yarnpkg.com/@nestjs/websockets/-/websockets-10.4.6.tgz#237eb36b905a9b8d065575ae099de5902ba5c2cf"
+  integrity sha512-53YqDQylPAOudNFiiBvrN8QrRl/sZ9oEjKbD3wBVgrFREbaiuTySoyyy6HwVs60HW29uQwck+Bp7qkKGjhtQKg==
+  dependencies:
+    iterare "1.2.1"
+    object-hash "3.0.0"
     tslib "2.7.0"
 
 "@nodelib/fs.scandir@2.1.5":
@@ -4519,6 +4528,18 @@ jws@^4.0.0:
     jwa "^2.0.0"
     safe-buffer "^5.0.1"
 
+kafka@^0.2.3:
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/kafka/-/kafka-0.2.3.tgz#fb7b1df38f161d821fee9dcb63985e388ea08188"
+  integrity sha512-Qi9J1HgikGlZz4dGzG++sZ3L52JTE+LCWelz3MNmze0KePSeWvZHVtGe981/mD/u+wyLg6INFw3Rgrqyg+orTA==
+  dependencies:
+    std "0.1.36"
+
+kafkajs@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/kafkajs/-/kafkajs-2.2.4.tgz#59e6e16459d87fdf8b64be73970ed5aa42370a5b"
+  integrity sha512-j/YeapB1vfPT2iOIUn/vxdyKEuhuY2PxMBvf5JWux6iSaukAccrMtXEY/Lb7OvavDhOWME589bpLrEdnVHjfjA==
+
 keyv@^4.5.4:
   version "4.5.4"
   resolved "https://registry.yarnpkg.com/keyv/-/keyv-4.5.4.tgz#a879a99e29452f942439f2a405e3af8b31d4de93"
@@ -5067,7 +5088,7 @@ object-hash@2.1.1:
   resolved "https://registry.yarnpkg.com/object-hash/-/object-hash-2.1.1.tgz#9447d0279b4fcf80cff3259bf66a1dc73afabe09"
   integrity sha512-VOJmgmS+7wvXf8CjbQmimtCnEx3IAoLxI3fp2fbWehxrWBcAQFbk+vcwb6vzR0VZv/eNCJ/27j151ZTwqW/JeQ==
 
-object-hash@^3.0.0:
+object-hash@3.0.0, object-hash@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/object-hash/-/object-hash-3.0.0.tgz#73f97f753e7baffc0e2cc9d6e079079744ac82e9"
   integrity sha512-RSn9F68PjH9HqtltsSnqYC1XXoWe9Bju5+213R98cNGttag9q9yAOTzdbsqvIa7aNm5WffBZFpWYr2aWrklWAw==
@@ -5870,6 +5891,11 @@ statuses@2.0.1:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/statuses/-/statuses-1.5.0.tgz#161c7dac177659fd9811f43771fa99381478628c"
   integrity sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA==
+
+std@0.1.36:
+  version "0.1.36"
+  resolved "https://registry.yarnpkg.com/std/-/std-0.1.36.tgz#79da0f9bba887809dfc60958ad4e69cdcf788c40"
+  integrity sha512-PZP6srpVKfDgMwgbo+0jOUV0IFAWxHKlyQj3wiZiov8AYbXtoDjhNtFaCLkthOp0T5I6HDFzYvo2mRVtU5HYdg==
 
 stream-events@^1.0.5:
   version "1.0.5"

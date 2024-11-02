@@ -70,6 +70,8 @@ model Media {
   noteImage Notes[] @relation("noteImageMedia")
   
   noteMusic Notes[] @relation("noteMusic")
+
+  chatMessage Message[]
 }
 
 enum AccountPrivacyType {
@@ -195,6 +197,13 @@ model User {
   accountSearch RecentSearch[] @relation("accountUserSearched")
 
   PollAnswer PollAnswer[]
+
+  chatsCreator Chat[] @relation("chatCreator")
+  messages    Message[] @relation("UserMessages")
+
+  Chat Chat[]
+
+  userSharedOnChat Message[] @relation("sharedOnChat")
 }
 
 model StoryView {
@@ -235,6 +244,8 @@ model Story {
   // @@unique([mediaId], name: "Unique_MediaId")
 
   LikeStory LikeStory[]
+
+  storySharedOnChat Message[] @relation("chatStory")
 }
 
 
@@ -273,6 +284,8 @@ model Reel {
   LikeReel LikeReel[]
 
   recentSearch RecentSearch[]
+
+  reelSharedOnChat Message[] @relation("chatReel")
 }
 
 model LikeReel {
@@ -343,6 +356,8 @@ model Post {
   comments commentPost[]
 
   recentlSearch RecentSearch[]
+
+  postSharedOnChat Message[] @relation("chatPost")
 }
 
 model SavedPost {
@@ -508,4 +523,64 @@ model RecentSearch {
 
   reel Reel? @relation(fields: [reelId], references: [id])
   reelId Int?
+}
+
+enum ChatType {
+  PRIVATE
+  GROUP
+}
+
+model Chat {
+  id           Int               @id @default(autoincrement())
+  type         ChatType
+
+  createdAt    DateTime          @default(now()) @db.Timestamptz()
+  updatedAt    DateTime          @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt    DateTime?         @db.Timestamptz()
+
+  chatCreator      User       @relation("chatCreator", fields: [chatCreatorId], references: [id])
+  chatCreatorId    Int
+
+  chatParticipants User[]
+  chatMessage Message[] @relation("ChatMessages")
+
+}
+
+
+model Message {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+
+  text        String?
+  type       MessageType[]
+
+  messageSender      User     @relation("UserMessages", fields: [messageSenderId], references: [id])
+  messageSenderId    Int
+
+  chat        Chat     @relation("ChatMessages", fields: [chatId], references: [id])
+  chatId      Int
+
+  mediaContent Media[]
+
+  chatPost Post? @relation("chatPost", fields: [chatPostId], references: [id])
+  chatPostId Int?
+
+  chatStory Story? @relation("chatStory", fields: [chatStoryId], references: [id])
+  chatStoryId Int?
+
+  chatReel Reel? @relation("chatReel", fields: [chatReelId], references: [id])
+  chatReelId Int?
+
+  sharedUser User? @relation("sharedOnChat", fields: [sharedUserId], references: [id])
+  sharedUserId Int?
+
+}
+
+enum MessageType {
+  TEXT
+  MEDIA
+  POST
+  STORY
+  REEL
+  USER
 }
