@@ -4,6 +4,7 @@ import {
   ApiPropertyOptional,
 } from '@nestjs/swagger';
 import { AudienceType, PostFeedType } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
   IsOptional,
   IsString,
@@ -15,6 +16,7 @@ import {
   MaxLength,
   ArrayMaxSize,
   IsNumber,
+  ValidateNested,
 } from 'class-validator';
 
 export class createPollDTO {
@@ -87,10 +89,13 @@ export class CreatePostDto {
   @ApiProperty({
     description: 'Array of poll IDs associated with the post',
     required: false,
+    type: [createPollDTO],
   })
   @IsOptional()
   @IsArray()
-  poll?: createPollDTO;
+  @ValidateNested({ each: true })
+  @Type(() => createPollDTO)
+  poll?: createPollDTO[];
 }
 
 export class UpdatePostDto {
@@ -200,4 +205,21 @@ export class likeCommentOfPostDto {
   @IsNotEmpty()
   @IsNumber()
   commentId: number;
+}
+
+export class PollAnswerDTO {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsInt()
+  pollId: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsInt()
+  postId: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  option: string;
 }

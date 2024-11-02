@@ -7,10 +7,14 @@ import {
 import { CreateReelDto } from './dto/reel.dto';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
+import { UtilityService } from 'src/util/utility.service';
 
 @Injectable()
 export class ReelService {
-  constructor(private readonly _dbService: DatabaseService) {}
+  constructor(
+    private readonly _dbService: DatabaseService,
+    private readonly _util: UtilityService,
+  ) {}
 
   async create(user: User, payload: CreateReelDto): Promise<APIResponseDTO> {
     const { mediaIds } = payload;
@@ -160,5 +164,77 @@ export class ReelService {
       message: 'reel found',
       data: findReel,
     };
+  }
+
+  async likeReel(user: User, reelId: number): Promise<APIResponseDTO> {
+    const blockUsers = await this._util.getBlockedUsers(user.id);
+    const blockUsersIds: number[] = blockUsers.map((user) => user.id);
+
+    const reel = await this.findReelById(reelId, {
+      throwErrorIfNotFound: true,
+    });
+
+    if (blockUsersIds.includes(reel.creatorId)) {
+      throw new Error(
+        'You cannot like a reel created by a user you have blocked.',
+      );
+    }
+
+    const findReelLiked = await this.findReelLiked(reelId, user.id);
+
+    if (findReelLiked.length > 0) {
+      await this._dbService.likeReel.deleteMany({
+        where: { reelId, likedByUserId: user.id },
+      });
+      return {
+        status: true,
+        message: 'reel unliked',
+      };
+    }
+
+    await this._dbService.likeReel.create({
+      data: {
+        likedByUser: { connect: { id: user.id } },
+        reel: { connect: { id: reelId } },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'reel liked',
+    };
+  }
+
+  private async findReelById(
+    id: number,
+    { throwErrorIfNotFound = false, whereCondition = {} } = {},
+  ) {
+    const reelFound = await this._dbService.reel.findUnique({
+      where: { id, deletedAt: null, ...whereCondition },
+    });
+    if (!reelFound && throwErrorIfNotFound === true) {
+      throw new BadRequestException('reel does not exist');
+    }
+    return reelFound;
+  }
+
+  private async findReelLiked(
+    id: number,
+    userId: number,
+    { throwErrorIfNotFound = false } = {},
+  ) {
+    const findReelLiked = await this._dbService.likeReel.findMany({
+      where: { reelId: id, likedByUserId: userId, deletedAt: null },
+    });
+
+    if (
+      !findReelLiked &&
+      !findReelLiked.length &&
+      throwErrorIfNotFound === true
+    ) {
+      throw new BadRequestException('reel has not been liked');
+    }
+
+    return findReelLiked;
   }
 }

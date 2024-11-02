@@ -266,9 +266,8 @@ export class StoryService {
     storyId: number,
     userId: number,
   ): Promise<APIResponseDTO> {
-    const story = await this._dbService.story.findUnique({
-      where: { id: storyId },
-      select: { id: true, creatorId: true },
+    const story = await this.findStoryById(storyId, {
+      throwErrorIfNotFound: true,
     });
 
     const findMediaOfStory = await this._dbService.media.findMany({
@@ -304,6 +303,45 @@ export class StoryService {
       status: true,
       message: 'Story successfully deleted',
       data: null,
+    };
+  }
+
+  async likeStory(user: User, storyId: number): Promise<APIResponseDTO> {
+    const blockUsers = await this._util.getBlockedUsers(user.id);
+    const blockUsersIds: number[] = blockUsers.map((user) => user.id);
+
+    const story = await this.findStoryById(storyId, {
+      throwErrorIfNotFound: true,
+    });
+
+    if (blockUsersIds.includes(story.creatorId)) {
+      throw new Error(
+        'You cannot like a story created by a user you have blocked.',
+      );
+    }
+
+    const findStoryLiked = await this.findStoryLiked(storyId, user.id);
+
+    if (findStoryLiked.length > 0) {
+      await this._dbService.likeStory.deleteMany({
+        where: { storyId, likedByUserId: user.id },
+      });
+      return {
+        status: true,
+        message: 'story unliked',
+      };
+    }
+
+    await this._dbService.likeStory.create({
+      data: {
+        likedByUser: { connect: { id: user.id } },
+        story: { connect: { id: storyId } },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'story liked',
     };
   }
 
@@ -549,15 +587,35 @@ export class StoryService {
 
   private async findStoryById(
     id: number,
-    { throwErrorIfNotFound = false } = {},
+    { throwErrorIfNotFound = false, whereCondition = {} } = {},
   ) {
     const storyFound = await this._dbService.story.findUnique({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...whereCondition },
     });
     if (!storyFound && throwErrorIfNotFound === true) {
       throw new BadRequestException('story does not exist');
     }
     return !storyFound && throwErrorIfNotFound ? null : storyFound;
+  }
+
+  private async findStoryLiked(
+    id: number,
+    userId: number,
+    { throwErrorIfNotFound = false } = {},
+  ) {
+    const findLikedStory = await this._dbService.likeStory.findMany({
+      where: { storyId: id, likedByUserId: userId, deletedAt: null },
+    });
+
+    if (
+      !findLikedStory &&
+      !findLikedStory.length &&
+      throwErrorIfNotFound === true
+    ) {
+      throw new BadRequestException('story has not been liked');
+    }
+
+    return findLikedStory;
   }
 
   private async createMultipleStories({

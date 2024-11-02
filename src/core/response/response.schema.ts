@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty } from 'class-validator';
 
 export class BadRequestExceptionResponse {
   @ApiProperty({ default: 'Bad request. check input' })
@@ -23,32 +24,17 @@ export class FatalErrorExceptionResponse {
   @ApiProperty({ default: 'Something went wrong' })
   message: string;
 }
-export class MessageResponseDTO {
-  @ApiProperty()
-  status?: boolean;
-
-  @ApiProperty()
-  message: string;
-}
-export class BooleanResponseDTO {
-  @ApiProperty()
-  data: boolean;
-}
-
-export class StringResponseDTO {
-  @ApiProperty()
-  data: string;
-}
-
 export class APIResponseDTO {
-  @ApiProperty()
+  @ApiPropertyOptional()
   status: boolean;
 
   @ApiProperty()
+  @IsNotEmpty()
   message: string;
 
-  @ApiProperty()
-  data: any;
+  @ApiPropertyOptional()
+  data?: any;
 
+  @ApiPropertyOptional()
   test?: any;
 }

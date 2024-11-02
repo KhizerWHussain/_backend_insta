@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { APP_GUARD, RouterModule } from '@nestjs/core';
+import { APP_GUARD } from '@nestjs/core';
 import { UserModule } from './modules/user/user.module';
 import { MediaModule } from './modules/media/media.module';
 import { PostModule } from './modules/post/post.module';
@@ -32,12 +32,6 @@ import { SearchModule } from './modules/search/search.module';
     ActivityModule,
     NotificationModule,
     SearchModule,
-    RouterModule.register([
-      {
-        path: './modules/search/search.module.ts',
-        module: SearchModule,
-      },
-    ]),
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AuthGuard }],

@@ -49,4 +49,14 @@ export class ReelController {
   detail(@CurrentUser() user: User, @Param('reelId') reelId: number) {
     return this.reelService.singleReelDetail(user, Number(reelId));
   }
+
+  @Authorized()
+  @Post({
+    path: '/like/:reelId',
+    description: 'like-unlike reel (toggle)',
+    response: APIResponseDTO,
+  })
+  likeReel(@CurrentUser() user: User, @Param('reelId') reelId: number) {
+    return this.reelService.likeReel(user, Number(reelId));
+  }
 }

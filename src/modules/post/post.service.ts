@@ -1,4 +1,10 @@
-import { commentPost, Prisma, PrismaClient, User } from '@prisma/client';
+import {
+  commentPost,
+  PollAnswer,
+  Prisma,
+  PrismaClient,
+  User,
+} from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
@@ -9,6 +15,7 @@ import {
   CreatePostDto,
   createSavedPostFolderDto,
   likeCommentOfPostDto,
+  PollAnswerDTO,
   savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
@@ -79,14 +86,18 @@ export class PostService {
         },
       });
 
-      if (payload.poll) {
-        await prisma.poll.create({
-          data: {
-            question: payload.poll.question,
-            options: payload.poll.options,
-            post: { connect: { id: post.id } },
-            pollCreator: { connect: { id: user.id } },
-          },
+      if (payload.poll && Array.isArray(payload.poll)) {
+        const pollsData = payload.poll.map((poll) => ({
+          question: poll.question,
+          options: poll.options,
+          //  post: { connect: { id: post.id } },
+          //  pollCreator: { connect: { id: user.id } },
+          postId: post.id,
+          pollCreatorId: user.id,
+        }));
+
+        await prisma.poll.createMany({
+          data: pollsData,
         });
       }
 
@@ -985,6 +996,10 @@ export class PostService {
       postId,
     );
 
+    if (commentExist.commentatorId !== user.id) {
+      throw new BadRequestException('you cannot delete other user comments');
+    }
+
     await this._dbService.$transaction(async (prisma) => {
       if (commentExist.replies.length > 0) {
         await prisma.commentPost.deleteMany({
@@ -1047,6 +1062,49 @@ export class PostService {
       status: true,
       message: 'comment liked successfully',
       data: null,
+    };
+  }
+
+  async answerPoll(
+    user: User,
+    payload: PollAnswerDTO,
+  ): Promise<APIResponseDTO> {
+    const { option, pollId, postId } = payload;
+    await this._util.checkPostExistOrNot(postId);
+
+    const poll = await this._dbService.poll.findUnique({
+      where: { id: pollId, postId },
+    });
+
+    if (!poll) {
+      throw new NotFoundException('poll does not exist');
+    }
+
+    if (!poll.options.includes(option)) {
+      throw new BadRequestException(
+        `invalid option selected, options must be from ${poll.options}`,
+      );
+    }
+
+    const existingAnswer = await this._dbService.pollAnswer.findFirst({
+      where: { pollId, answeredByUserId: user.id },
+    });
+
+    if (existingAnswer) {
+      throw new BadRequestException('you already has answered this poll');
+    }
+
+    await this._dbService.pollAnswer.create({
+      data: {
+        answeredByUser: { connect: { id: user.id } },
+        option,
+        poll: { connect: { id: pollId } },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'poll answered',
     };
   }
 

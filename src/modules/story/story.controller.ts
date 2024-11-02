@@ -81,4 +81,14 @@ export class StoryController {
   storyDetail(@CurrentUser() user: User, @Param('storyId') storyId: number) {
     return this._storyService.storyDetail(user, Number(storyId));
   }
+
+  @Authorized()
+  @Post({
+    path: '/like/:storyId',
+    description: 'detail of story',
+    response: APIResponseDTO,
+  })
+  likeStory(@CurrentUser() user: User, @Param('storyId') storyId: number) {
+    return this._storyService.likeStory(user, Number(storyId));
+  }
 }

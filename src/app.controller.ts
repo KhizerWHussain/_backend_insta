@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
-import { LazyModuleLoader } from '@nestjs/core';
+// import { LazyModuleLoader } from '@nestjs/core';
 // import { SearchModule } from './modules/search/search.module';
 // import { SearchService } from './modules/search/search.service';
 

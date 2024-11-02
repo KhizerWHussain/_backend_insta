@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { MessageResponseDTO } from '../../core/response/response.schema';
+import { APIResponseDTO } from '../../core/response/response.schema';
 import DatabaseService from '../../database/database.service';
 import CreateDeviceRequestDTO from './dto/request/create.request';
 import CreateDeviceResponseDTO from './dto/response/create.response';
@@ -30,7 +30,7 @@ export default class DeviceService {
   async updateFcm(
     authToken: string,
     fcmToken: string,
-  ): Promise<MessageResponseDTO> {
+  ): Promise<APIResponseDTO> {
     const device = await this._dbService.device.findFirst({
       where: { authToken },
     });
@@ -44,10 +44,10 @@ export default class DeviceService {
       data: { fcmToken },
     });
 
-    return { message: 'Success' };
+    return { status: true, message: 'Success' };
   }
 
-  async delete(authToken: string): Promise<MessageResponseDTO> {
+  async delete(authToken: string): Promise<APIResponseDTO> {
     const device = await this._dbService.device.findFirst({
       where: { authToken },
       select: { id: true },
@@ -61,10 +61,10 @@ export default class DeviceService {
       where: { id: device.id },
     });
 
-    return { message: 'Success' };
+    return { status: true, message: 'Success' };
   }
 
-  async deleteAll(userId: number): Promise<MessageResponseDTO> {
+  async deleteAll(userId: number): Promise<APIResponseDTO> {
     const result = await this._dbService.device.deleteMany({
       where: { userId },
     });
@@ -73,6 +73,6 @@ export default class DeviceService {
       throw new NotFoundException('User device not found');
     }
 
-    return { message: 'Success' };
+    return { status: true, message: 'Success' };
   }
 }

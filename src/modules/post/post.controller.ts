@@ -5,6 +5,7 @@ import {
   CreatePostDto,
   createSavedPostFolderDto,
   likeCommentOfPostDto,
+  PollAnswerDTO,
   savedPostDTO,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
@@ -272,5 +273,15 @@ export class PostController {
     @Body() payload: likeCommentOfPostDto,
   ) {
     return this._postService.likeUnlikeComment(user, payload);
+  }
+
+  @Authorized()
+  @Post({
+    path: '/poll/answer',
+    description: 'answer post poll',
+    response: APIResponseDTO,
+  })
+  answerPoll(@CurrentUser() user: User, @Body() payload: PollAnswerDTO) {
+    return this._postService.answerPoll(user, payload);
   }
 }
