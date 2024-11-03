@@ -55,6 +55,20 @@ export class UtilityService {
     return findUser;
   }
 
+  async checkMultipleUsersExistOrNot(userIds: number[], whereCondtion?: any) {
+    const users = await this._dbService.user.findMany({
+      where: {
+        id: { in: userIds },
+        deletedAt: null,
+        ...whereCondtion,
+      },
+    });
+    if (users.length !== userIds.length) {
+      throw new NotFoundException('one or more users does not exist');
+    }
+    return users;
+  }
+
   async filterUsersWhoAreNotActive(userIds: number[]) {
     const findUsers = await this._dbService.user.findMany({
       where: {

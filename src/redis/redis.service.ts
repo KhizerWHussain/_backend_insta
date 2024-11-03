@@ -83,4 +83,8 @@ export class RedisService {
   async cleareCaches(): Promise<void> {
     await this.redisClient.reset();
   }
+
+  async expireIn(key: string, seconds: number) {
+    await this.redisClient.expire(key, seconds);
+  }
 }

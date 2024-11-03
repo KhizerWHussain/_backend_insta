@@ -16,6 +16,6 @@ export class ChatController {
     response: APIResponseDTO,
   })
   async createEvent(@CurrentUser() user: User, @Body() payload: RandomChatDto) {
-    return await this._chat.initiateWithRandomAccount(user, payload);
+    return await this._chat.initiateWithRandom(user, payload);
   }
 }

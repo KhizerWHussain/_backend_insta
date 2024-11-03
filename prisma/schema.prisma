@@ -201,9 +201,9 @@ model User {
   chatsCreator Chat[] @relation("chatCreator")
   messages    Message[] @relation("UserMessages")
 
-  Chat Chat[]
-
   userSharedOnChat Message[] @relation("sharedOnChat")
+
+  ChatParticipant ChatParticipant[] @relation("chatParticipant")
 }
 
 model StoryView {
@@ -541,15 +541,31 @@ model Chat {
   chatCreator      User       @relation("chatCreator", fields: [chatCreatorId], references: [id])
   chatCreatorId    Int
 
-  chatParticipants User[]
   chatMessage Message[] @relation("ChatMessages")
 
+  ChatParticipants ChatParticipant[]
 }
+
+model ChatParticipant {
+  id                Int         @id @default(autoincrement())
+
+  user              User           @relation("chatParticipant", fields: [userId], references: [id])
+  userId            Int
+
+  chat              Chat           @relation(fields: [chatId], references: [id])
+  chatId            Int
+
+  joinedAt          DateTime       @default(now())
+  leavedAt DateTime?         @db.Timestamptz()
+}
+
 
 
 model Message {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())
+  updatedAt    DateTime          @default(now()) @updatedAt @db.Timestamptz()
+  deletedAt    DateTime?         @db.Timestamptz()
 
   text        String?
   type       MessageType[]

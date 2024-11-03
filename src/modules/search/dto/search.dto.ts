@@ -1,9 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class basicSearchDto {
   @ApiProperty()
   @IsString()
   @IsOptional()
   keyword?: string;
+}
+
+export class keywordSearchDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  keyword: string;
 }
