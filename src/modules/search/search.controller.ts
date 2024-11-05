@@ -19,7 +19,7 @@ export class SearchController {
     @CurrentUser() user: User,
     @Query() query: basicSearchDto,
   ): Promise<APIResponseDTO> {
-    return this._search.basicSearch(user, query);
+    return await this._search.basic(user, query);
   }
 
   @Authorized()
@@ -32,6 +32,6 @@ export class SearchController {
     @CurrentUser() user: User,
     @Query() query: keywordSearchDto,
   ) {
-    return this._search.onKeyword(user, query);
+    return await this._search.onKeyword(user, query);
   }
 }

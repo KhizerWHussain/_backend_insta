@@ -34,7 +34,7 @@ export class FollowController {
 
   @Authorized()
   @Post({
-    path: '/follow/:userId',
+    path: '/:userId',
     description: 'follow user account',
     response: APIResponseDTO,
   })
@@ -68,7 +68,7 @@ export class FollowController {
   }
 
   @Authorized()
-  @Patch({
+  @Post({
     path: '/unfollowUser/:userToUnfollowId',
     description: 'unfollow already followed user',
     response: APIResponseDTO,

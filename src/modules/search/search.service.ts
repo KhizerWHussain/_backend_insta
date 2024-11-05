@@ -14,10 +14,7 @@ export class SearchService {
     private readonly _redis: RedisService,
   ) {}
 
-  async basicSearch(
-    user: User,
-    query?: basicSearchDto,
-  ): Promise<APIResponseDTO> {
+  async basic(user: User, query?: basicSearchDto): Promise<APIResponseDTO> {
     if (!query || !query.keyword || query.keyword.trim() === '') {
       return {
         status: true,

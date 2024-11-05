@@ -134,6 +134,7 @@ export class UserService {
 
     const token = await this._authService.createSession(
       findUserByUsernameOrEmail.id,
+      payload.fcmToken,
     );
 
     return {

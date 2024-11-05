@@ -284,6 +284,79 @@ export class UtilityService {
     }
     return note;
   }
+
+  async deletePost(postId: number, { whereCondition }) {
+    await this._dbService.post.delete({
+      where: { id: postId, ...whereCondition },
+    });
+  }
+
+  async deleteFirst(
+    model: any, // The Prisma model to query (e.g., this._db.user)
+    whereCondition: object,
+  ) {
+    const entry = await model.findFirst({
+      where: whereCondition,
+    });
+    if (entry) {
+      const deletedEntry = await model.delete({
+        where: { id: entry.id },
+      });
+      return true;
+    }
+    return false;
+  }
+
+  async deleteLast(
+    model: any, // The Prisma model to query (e.g., this._db.user)
+    whereCondition: object, // The condition to find the entry
+  ) {
+    const entry = await model.findFirst({
+      where: whereCondition,
+      orderBy: { id: 'desc' }, // Order by 'id' in descending order to get the last entry
+    });
+
+    // If an entry is found, delete it
+    if (entry) {
+      await model.delete({
+        where: { id: entry.id },
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  async findUserFcm(userId: number): Promise<string> {
+    const userDevice = await this._dbService.device.findFirst({
+      where: { userId: userId, deletedAt: null, fcmToken: { not: null } },
+      select: {
+        fcmToken: true,
+      },
+    });
+    if (!userDevice) {
+      return null;
+    }
+    return userDevice.fcmToken;
+  }
+
+  async findUsersFcm(userId: number[]) {
+    const userDevices = await this._dbService.device.findMany({
+      where: { userId: { in: userId }, deletedAt: null },
+      select: {
+        fcmToken: true,
+      },
+    });
+    if (userId.length !== userDevices.length) {
+      // throw new NotFoundException('one or more user does not have fcm Token');
+      console.error('one or more user does not have fcm Token');
+    }
+    const devicesWithFcmTokens = userDevices
+      .filter((device) => device.fcmToken)
+      .map((device) => device.fcmToken);
+
+    return devicesWithFcmTokens;
+  }
 }
 
 interface UserExistOrNotTypes {

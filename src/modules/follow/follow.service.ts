@@ -3,12 +3,14 @@ import { APIResponseDTO } from 'src/core/response/response.schema';
 import { RequestStatus, User } from '@prisma/client';
 import DatabaseService from 'src/database/database.service';
 import { UtilityService } from 'src/util/utility.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class FollowService {
   constructor(
     private readonly _db: DatabaseService,
     private readonly _util: UtilityService,
+    private readonly _notification: NotificationService,
   ) {}
 
   async followAccount(
@@ -17,6 +19,10 @@ export class FollowService {
   ): Promise<APIResponseDTO> {
     const toBeFollowedUser = await this._util.checkUserExistOrNot({
       userId: followUserId,
+    });
+
+    const myUser = await this._util.checkUserExistOrNot({
+      userId: user.id,
     });
 
     if (user.id === followUserId) {
@@ -45,10 +51,25 @@ export class FollowService {
       },
     });
 
+    const followUserFcm = await this._util.findUserFcm(followUserId);
+    console.log('followUserFcm ==>', followUserFcm);
+
+    if (createFollower.id) {
+      await this._notification.follow({
+        fcm: followUserFcm,
+        message: `${myUser.firstName} has followed you`,
+        title: 'User Followed',
+        topic: 'follow',
+        userId: user.id,
+        toBeFollowUserId: followUserId,
+        userFollowId: createFollower.id,
+      });
+    }
+
     return {
       status: true,
       message: 'account has been followed',
-      data: createFollower,
+      data: null,
     };
   }
 
@@ -97,6 +118,9 @@ export class FollowService {
         receiverId: recieverId,
       },
     });
+
+    // await this._notification.sentFollowRequest({
+    // });
 
     return {
       status: true,
