@@ -7,11 +7,8 @@ import { v4 as uuid } from 'uuid';
 export class FirebaseAdminService {
   private instance: admin.app.App;
 
-  //   private fcmToken =
-  //       'dmhqd1dwZ0uMrdX_k7B-5o:APA91bFaTVt1mgVTPqsrGDsv5L7EmeD5Lysd34FPySwQdS';
-
   private fcmToken =
-    'ftlsNyr070x2jQ8imNUE-p:APA91bGlYiKmC9c1E1cZG_FA0k7sjIVjl_jrpbuTSJ301IYesBcH9Te3QoRqfItAEgNzjQosmcl4jF1YFoQCFON6npg8PEexgcY7DBf4c5L1r9_o8mLc5-0';
+    'f4I4lebSsK4IE8dSMRO-bG:APA91bEEcbvhpT48or-1-ZbZzgr0yynokaIO8rbhGiAqMtleJFzYlHZ7Xha6VKf6RnxIrAlYxAtuDCJCU4F6ApQrV9-EJMTyE6-7CyVJU05EooCFhvUJID0';
 
   constructor() {
     // const firebaseCredentials = JSON.parse(

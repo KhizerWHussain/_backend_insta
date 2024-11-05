@@ -21,10 +21,6 @@ export class FollowService {
       userId: followUserId,
     });
 
-    const myUser = await this._util.checkUserExistOrNot({
-      userId: user.id,
-    });
-
     if (user.id === followUserId) {
       throw new BadRequestException('you cannot follow yourselve');
     }
@@ -52,12 +48,11 @@ export class FollowService {
     });
 
     const followUserFcm = await this._util.findUserFcm(followUserId);
-    console.log('followUserFcm ==>', followUserFcm);
 
     if (createFollower.id) {
       await this._notification.follow({
         fcm: followUserFcm,
-        message: `${myUser.firstName} has followed you`,
+        message: `${user.firstName} has followed you`,
         title: 'User Followed',
         topic: 'follow',
         userId: user.id,
@@ -112,15 +107,26 @@ export class FollowService {
       };
     }
 
-    await this._db.followRequest.create({
+    const followRequest = await this._db.followRequest.create({
       data: {
         requesterId: user.id,
         receiverId: recieverId,
       },
     });
 
-    // await this._notification.sentFollowRequest({
-    // });
+    const followRequestUserFcm = await this._util.findUserFcm(recieverId);
+
+    if (followRequest.id) {
+      await this._notification.sentFollowRequest({
+        fcm: followRequestUserFcm,
+        message: `${user.firstName} has sent you a follow request`,
+        title: 'Follow Request',
+        topic: 'follow_request',
+        userId: user.id,
+        followRequestId: followRequest.id,
+        requestRecieverId: recieverId,
+      });
+    }
 
     return {
       status: true,
@@ -140,8 +146,6 @@ export class FollowService {
     if (!request) {
       throw new BadRequestException('request donot exist');
     }
-
-    this._util.checkUserExistOrNot({ userId: user.id });
 
     const result = await this._db.$transaction(async (prisma) => {
       await prisma.followRequest.update({
@@ -163,6 +167,23 @@ export class FollowService {
           following: { connect: { id: user.id } },
         },
       });
+
+      const userWhoRequestedFollowfcm = await this._util.findUserFcm(
+        request.requesterId,
+      );
+
+      if (createFollower.id) {
+        await this._notification.acceptFollow({
+          fcm: userWhoRequestedFollowfcm,
+          message: `${user.firstName} has accepted your follow request`,
+          title: 'Accept Follow Request',
+          topic: 'accept_follow_request',
+          userId: user.id,
+          requestedUserId: request.requesterId,
+          userFollowId: createFollower.id,
+        });
+      }
+
       return createFollower;
     });
 
@@ -230,10 +251,8 @@ export class FollowService {
       throw new BadRequestException('You are not following this user');
     }
 
-    await this._db.$transaction(async (prisma) => {
-      await prisma.userFollow.deleteMany({
-        where: { id: followRelation.id },
-      });
+    await this._db.userFollow.deleteMany({
+      where: { id: followRelation.id },
     });
 
     return {

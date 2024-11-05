@@ -23,12 +23,14 @@ import {
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
 import { UtilityService } from 'src/util/utility.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class PostService {
   constructor(
     private _dbService: DatabaseService,
     private readonly _util: UtilityService,
+    private readonly _notification: NotificationService,
   ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
@@ -568,21 +570,7 @@ export class PostService {
   }
 
   async likeUnlikePost(user: User, postId: number): Promise<APIResponseDTO> {
-    const findUser = await this._dbService.user.findUnique({
-      where: { id: user.id, deletedAt: null },
-    });
-
-    if (!findUser) {
-      throw new BadRequestException('user donot exist');
-    }
-
-    const findPostToLike = await this._dbService.post.findUnique({
-      where: { id: postId, deletedAt: null },
-    });
-
-    if (!findPostToLike) {
-      throw new BadRequestException('post donot exist');
-    }
+    const findPostToLike = await this._util.checkPostExistOrNot(postId);
 
     const postAlreadyLiked = await this._dbService.likePost.findFirst({
       where: { postId: postId, likeByUser: { id: user.id }, deletedAt: null },
@@ -599,6 +587,9 @@ export class PostService {
             likedByCreator: false,
           },
         });
+        await this._dbService.notification.deleteMany({
+          where: { likePostId: postAlreadyLiked.id },
+        });
       }
       return {
         status: true,
@@ -607,14 +598,31 @@ export class PostService {
       };
     }
 
-    await this._dbService.likePost.create({
+    const postHasBeenLiked = await this._dbService.likePost.create({
       data: {
         likeByUser: { connect: { id: user.id } },
         post: { connect: { id: postId } },
       },
     });
 
-    if (findPostToLike?.creatorId === user.id) {
+    // if post like successfull & post is not being like by post creator then
+    if (postHasBeenLiked.id && findPostToLike.creatorId !== user.id) {
+      const UserWhoCreatedPostFcm = await this._util.findUserFcm(
+        findPostToLike.creatorId,
+      );
+      await this._notification.likeOnPost({
+        fcm: UserWhoCreatedPostFcm,
+        message: `${user.firstName} has liked your post`,
+        title: 'Post Liked',
+        topic: 'like_post',
+        likePostId: postHasBeenLiked.id,
+        requestRecieverId: findPostToLike.creatorId,
+        userId: user.id,
+        postId: findPostToLike.id,
+      });
+    }
+
+    if (findPostToLike.creatorId === user.id) {
       await this._dbService.post.update({
         where: { id: postId, deletedAt: null, creatorId: user.id },
         data: {

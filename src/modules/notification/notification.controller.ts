@@ -1,39 +1,51 @@
-import { Controller, Body, Param } from '@nestjs/common';
+import { BadRequestException, Controller, Param, Sse } from '@nestjs/common';
 import { NotificationService } from './notification.service';
-import { CreateNotificationDto } from './dto/notification.dto';
-import { Authorized, CurrentUser, Post } from 'src/core/decorators';
+import { Authorized, CurrentUser, Get } from 'src/core/decorators';
 import { User } from '@prisma/client';
 import { APIResponseDTO } from 'src/core/response/response.schema';
+import { Observable } from 'rxjs';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Controller('notification')
 export class NotificationController {
-  constructor(private readonly _notificationService: NotificationService) {}
+  constructor(
+    private readonly _notificationService: NotificationService,
+    private readonly _eventEmitter: EventEmitter2,
+  ) {}
 
-  // @Authorized()
-  // @Post({
-  //   path: '/create/notification',
-  //   description: 'create notifcation by  user (test)',
-  //   response: APIResponseDTO,
-  // })
-  // async create(
-  //   @CurrentUser() user: User,
-  //   @Body() payload: CreateNotificationDto,
-  // ) {
-  //   return await this._notificationService.create(payload);
-  // }
+  @Authorized()
+  @Get({
+    path: '/getMine',
+    description: 'getting all my (user) notifications',
+    response: APIResponseDTO,
+  })
+  async getNotifications(@CurrentUser() user: User) {
+    return await this._notificationService.getMine(user);
+  }
 
-  // @Get()
-  // findAll() {
-  //   return this.notificationService.findAll();
-  // }
+  // event emitter notification work
+  @Authorized()
+  @Sse('sse/:userId')
+  sse(
+    @Param('userId') userId: number,
+    @CurrentUser() user: User,
+  ): Observable<any> {
+    if (user.id !== userId) {
+      throw new BadRequestException(
+        'Unauthorized: You can only listen to your own notifications',
+      );
+    }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.notificationService.findOne(+id);
-  // }
+    return new Observable((observer) => {
+      const onNewNotification = (notification: any) => {
+        observer.next({ event: 'newNotification', data: notification });
+      };
 
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.notificationService.remove(+id);
-  // }
+      this._eventEmitter.on(`notifications.${user.id}`, onNewNotification);
+
+      return () => {
+        this._eventEmitter.off(`notifications.${user.id}`, onNewNotification);
+      };
+    });
+  }
 }
