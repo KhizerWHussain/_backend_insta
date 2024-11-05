@@ -65,10 +65,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join_chat')
-  handleJoinChat(client: Socket, userId: number) {
-    // Store the mapping of socketId to userId
+  async handleJoinChat(
+    client: Socket,
+    userId: number,
+    chatId: number,
+  ): Promise<APIResponseDTO> {
     this.activeUsers.set(client.id, userId.toString());
     console.log(`User ${userId} joined chat with socket ID: ${client.id}`);
+
+    client.join(chatId.toString());
+
+    try {
+      const messages = await this._chat.getMessages(userId, chatId);
+      client.emit('messages', messages);
+
+      return { status: true, message: 'sucessfull', data: messages };
+    } catch (error) {
+      console.error(
+        `Error retrieving messages for user ${userId} in chat ${chatId}:`,
+        error,
+      );
+      client.emit('error', { message: 'Could not retrieve messages.' });
+      return {
+        status: false,
+        message: 'Could not retrieve messages.',
+        data: null,
+      };
+    }
   }
 
   @SubscribeMessage('leave_chat')

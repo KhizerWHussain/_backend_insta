@@ -243,4 +243,126 @@ export class ChatService {
       where: { id: messageId, chatId, messageSenderId: userId },
     });
   }
+
+  async getMessages(userId: number, chatId: number) {
+    await this._util.findChatById(chatId);
+
+    const chatMessages = await this._db.message.findMany({
+      where: {
+        chatId,
+        deletedAt: null,
+        chat: { ChatParticipants: { some: { id: userId } } },
+      },
+      select: {
+        id: true,
+        type: true,
+        createdAt: true,
+        updatedAt: true,
+        text: true,
+        chatId: true,
+        sharedUser: {
+          select: {
+            id: true,
+            fullName: true,
+            profile: {
+              select: {
+                path: true,
+              },
+            },
+          },
+        },
+        mediaContent: {
+          select: {
+            id: true,
+            type: true,
+            path: true,
+            name: true,
+          },
+        },
+        chatStory: {
+          select: {
+            id: true,
+            caption: true,
+            media: {
+              select: {
+                id: true,
+                path: true,
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: {
+                  select: {
+                    path: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        chatReel: {
+          select: {
+            id: true,
+            caption: true,
+            media: {
+              select: {
+                id: true,
+                path: true,
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: {
+                  select: {
+                    path: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        chatPost: {
+          select: {
+            id: true,
+            caption: true,
+            media: {
+              select: {
+                id: true,
+                path: true,
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: {
+                  select: {
+                    path: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        messageSender: {
+          select: {
+            id: true,
+            fullName: true,
+            profile: {
+              select: {
+                path: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return chatMessages;
+  }
 }

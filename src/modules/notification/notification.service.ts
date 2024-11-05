@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { FirebaseAdminService } from './firebase.service';
 import DatabaseService from 'src/database/database.service';
-import { User } from '@prisma/client';
+import { NotificationType, Prisma, User } from '@prisma/client';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { UtilityService } from 'src/util/utility.service';
-import { startOfToday, startOfYesterday } from 'date-fns';
+import { startOfToday } from 'date-fns';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
@@ -146,6 +146,42 @@ export class NotificationService {
     });
   }
 
+  async taggedOnPost({
+    fcms,
+    message,
+    taggedUserIds,
+    title,
+    topic,
+    userId,
+    data,
+    taggedPostIds,
+    postId,
+    prisma,
+  }: taggedOnPostProp) {
+    if (fcms.length > 0) {
+      await this._firebase.pushMulti(fcms, {
+        title,
+        data,
+        message,
+        topic,
+      });
+    }
+    const manyData = taggedUserIds.map((tagUserId: number, index: number) => ({
+      title,
+      type: NotificationType.TAG_POST,
+      data,
+      message,
+      postId: postId,
+      senderId: userId,
+      recieverId: tagUserId,
+      taggedPostId: taggedPostIds[index], // Use the index to get the corresponding taggedPostId
+    }));
+
+    await prisma.notification.createMany({
+      data: manyData,
+    });
+  }
+
   private timeAgoFormatter(date: Date): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     if (seconds < 30) return 'just now';
@@ -182,6 +218,7 @@ export class NotificationService {
         commentPost: true,
         followRequest: true,
         likePost: true,
+        recieverId: true,
         likeReel: true,
         likeStory: true,
         post: true,
@@ -233,51 +270,55 @@ export class NotificationService {
 
   private async notificationResponse(notifications) {
     const todayData = {
-      title: 'Today',
+      title: 'new',
       _count: 0,
       data: [],
     };
-    const yesterData = {
-      title: 'Yesterday',
+    const last30DaysData = {
+      title: 'last 30 days',
       _count: 0,
       data: [],
     };
-    const earlierData = {
-      title: 'Earlier',
+    const olderData = {
+      title: 'older',
       _count: 0,
       data: [],
     };
 
     const today = startOfToday();
-    const yesterday = startOfYesterday();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     notifications.forEach((notification) => {
       const notificationDate = new Date(notification.createdAt);
       const timeAgo = this.timeAgoFormatter(notificationDate);
+
       if (notificationDate >= today) {
+        // If the notification is from today
         todayData.data.push({
           ...notification,
           timeAgo,
         });
         todayData._count++;
-      } else if (notificationDate >= yesterday) {
-        yesterData.data.push({
+      } else if (notificationDate >= thirtyDaysAgo) {
+        // If the notification is within the last 30 days
+        last30DaysData.data.push({
           ...notification,
           timeAgo,
         });
-        yesterData._count++;
+        last30DaysData._count++;
       } else {
-        earlierData.data.push({
+        // If the notification is older than 30 days
+        olderData.data.push({
           ...notification,
           timeAgo,
         });
-        earlierData._count++;
+        olderData._count++;
       }
-
-      return notification;
     });
 
-    const notificationResponse = [todayData, yesterData, earlierData].filter(
+    // Only return categories with notifications
+    const notificationResponse = [todayData, last30DaysData, olderData].filter(
       (data) => data._count > 0,
     );
 
@@ -317,4 +358,17 @@ interface LikePostProp extends firebaseBody {
 interface acceptFollowProp extends firebaseBody {
   requestedUserId: number;
   userFollowId: number;
+}
+
+interface taggedOnPostProp {
+  fcms: string[];
+  title: string;
+  topic: string;
+  data?: any;
+  message: string;
+  userId: number;
+  taggedUserIds: number[];
+  taggedPostIds: number[];
+  postId: number;
+  prisma: Prisma.TransactionClient;
 }

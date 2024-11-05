@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { basicSearchDto, keywordSearchDto } from './dto/search.dto';
+import {
+  basicSearchDto,
+  keywordSearchDto,
+  postSearchByLocationDto,
+} from './dto/search.dto';
 import { User } from '@prisma/client';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
@@ -27,7 +31,11 @@ export class SearchService {
     const peopleWhoBlockedMeIds = await this._util.getUserWhoBlockMeIds(
       user.id,
     );
-    const blockIds: number[] = [...blockUserIds, ...peopleWhoBlockedMeIds];
+    const blockIds: number[] = [
+      ...blockUserIds,
+      ...peopleWhoBlockedMeIds,
+      user.id,
+    ];
 
     const users = await this._db.user.findMany({
       where: {
@@ -68,6 +76,18 @@ export class SearchService {
     accountId?: number,
     reelId?: number,
   ) {
+    const existingSearch = await this._db.recentSearch.findFirst({
+      where: {
+        deletedAt: null,
+        searchByUserId: userId,
+        keyword: keyword,
+      },
+    });
+
+    if (existingSearch) {
+      return existingSearch;
+    }
+
     const recentSearch = await this._db.recentSearch.create({
       data: {
         searchByUserId: userId,
@@ -104,6 +124,8 @@ export class SearchService {
   private async performKeywordSearch(keyword: string, userId: number) {
     const posts = await this._db.post.findMany({
       where: {
+        deletedAt: null,
+        feedType: 'ONFEED',
         caption: { contains: keyword, mode: 'insensitive' },
         creatorId: {
           not: userId,
@@ -111,6 +133,7 @@ export class SearchService {
       },
       select: {
         id: true,
+        location: true,
         creator: {
           select: {
             id: true,
@@ -133,6 +156,8 @@ export class SearchService {
 
     const users = await this._db.user.findMany({
       where: {
+        deletedAt: null,
+        activeStatus: 'ACTIVE',
         OR: [
           { username: { contains: keyword, mode: 'insensitive' } },
           { fullName: { contains: keyword, mode: 'insensitive' } },
@@ -156,6 +181,7 @@ export class SearchService {
 
     const reels = await this._db.reel.findMany({
       where: {
+        deletedAt: null,
         caption: { contains: keyword, mode: 'insensitive' },
         creatorId: {
           not: userId,
@@ -190,10 +216,79 @@ export class SearchService {
       },
     });
 
+    const postPlaces = await this._db.post.findMany({
+      where: {
+        deletedAt: null,
+        feedType: 'ONFEED',
+        location: {
+          contains: keyword,
+          mode: 'insensitive',
+        },
+        creatorId: {
+          not: userId,
+        },
+      },
+      select: {
+        location: true,
+      },
+    });
+
+    const uniqueLocations = Array.from(
+      new Set(postPlaces.map((post) => post.location)),
+    ).filter(Boolean);
+
     return {
-      posts,
+      forYou: posts,
       users,
       reels,
+      places: uniqueLocations,
     };
   }
+
+  async findPostsByLocation(
+    user: User,
+    query: postSearchByLocationDto,
+  ): Promise<APIResponseDTO> {
+    const { location } = query;
+
+    const posts = await this._db.post.findMany({
+      where: {
+        deletedAt: null,
+        feedType: 'ONFEED',
+        location: { contains: location, mode: 'insensitive' },
+        creatorId: {
+          not: user.id,
+        },
+      },
+      select: {
+        id: true,
+        location: true,
+        creator: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            profile: {
+              select: {
+                path: true,
+              },
+            },
+          },
+        },
+        media: {
+          select: {
+            path: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'post by locations found',
+      data: posts,
+    };
+  }
+
+  async otherUserContent() {}
 }

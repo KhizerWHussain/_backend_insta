@@ -207,7 +207,8 @@ model User {
 
   sentNotifications Notification[] @relation("sent_notifications")
   recievedNotifications Notification[] @relation("recieve_notifications")
-  
+
+  hashtags Hashtag[]
 }
 
 model StoryView {
@@ -252,6 +253,8 @@ model Story {
   storySharedOnChat Message[] @relation("chatStory")
 
   Notification Notification[]
+
+  hashtags Hashtag[]
 }
 
 
@@ -296,6 +299,8 @@ model Reel {
   reelSharedOnChat Message[] @relation("chatReel")
 
   Notification Notification[]
+
+  hashtags Hashtag[]
 }
 
 model LikeReel {
@@ -373,6 +378,8 @@ model Post {
   postSharedOnChat Message[] @relation("chatPost")
 
   notification Notification[]
+
+  hashtags Hashtag[]
 }
 
 model SavedPost {
@@ -616,6 +623,8 @@ model Message {
   sharedUser User? @relation("sharedOnChat", fields: [sharedUserId], references: [id])
   sharedUserId Int?
 
+
+  hashtags Hashtag[]
 }
 
 enum MessageType {
@@ -697,5 +706,40 @@ model Notification {
 
   chat Chat? @relation(fields: [chatId], references: [id])
   chatId Int?
+
+}
+
+
+enum HashtagType {
+  POST
+  STORY
+  REEL
+  CHAT_MESSAGE
+}
+
+model Hashtag {
+  id          Int       @id @default(autoincrement())
+  tag        String   
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt        DateTime?     
+
+  type HashtagType
+
+  creator      User     @relation(fields: [creatorId], references: [id])
+  creatorId    Int
+
+  post Post? @relation(fields: [postId], references: [id])
+  postId Int?
+
+  story Story? @relation(fields: [storyId], references: [id])
+  storyId Int?
+
+  reel Reel? @relation(fields: [reelId], references: [id])
+  reelId Int?
+
+  chatMessage Message? @relation(fields: [messageId], references: [id])
+  messageId Int?
 
 }

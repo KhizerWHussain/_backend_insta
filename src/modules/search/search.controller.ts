@@ -3,7 +3,11 @@ import { SearchService } from './search.service';
 import { Authorized, CurrentUser, Get } from 'src/core/decorators';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { User } from '@prisma/client';
-import { basicSearchDto, keywordSearchDto } from './dto/search.dto';
+import {
+  basicSearchDto,
+  keywordSearchDto,
+  postSearchByLocationDto,
+} from './dto/search.dto';
 
 @Controller('search')
 export class SearchController {
@@ -33,5 +37,18 @@ export class SearchController {
     @Query() query: keywordSearchDto,
   ) {
     return await this._search.onKeyword(user, query);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/post',
+    description: 'get post searched by location string',
+    response: APIResponseDTO,
+  })
+  async postsSearchByLocation(
+    @CurrentUser() user: User,
+    @Query() query: postSearchByLocationDto,
+  ) {
+    return await this._search.findPostsByLocation(user, query);
   }
 }

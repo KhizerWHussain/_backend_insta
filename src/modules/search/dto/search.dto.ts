@@ -14,3 +14,10 @@ export class keywordSearchDto {
   @IsNotEmpty()
   keyword: string;
 }
+
+export class postSearchByLocationDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  location: string;
+}

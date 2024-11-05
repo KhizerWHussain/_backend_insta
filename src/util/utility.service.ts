@@ -357,6 +357,28 @@ export class UtilityService {
 
     return devicesWithFcmTokens;
   }
+
+  async extractHashtags(text: string, regex?: any): Promise<string[]> {
+    const hashtagRegex = regex || /#[\w]+/g;
+    const hashtags = text.match(hashtagRegex) || [];
+
+    // Normalize Hashtags (remove # and convert to lowercase)
+    const normalizedHashtags = hashtags.map((tag: string) =>
+      tag.slice(1).toLowerCase(),
+    );
+
+    return normalizedHashtags;
+  }
+
+  async findChatById(chatId: number, whereCondition?: any) {
+    const chat = await this._dbService.chat.findUnique({
+      where: { id: chatId, deletedAt: null, ...whereCondition },
+    });
+    if (!chat) {
+      throw new NotFoundException('chat does not exist');
+    }
+    return chat;
+  }
 }
 
 interface UserExistOrNotTypes {

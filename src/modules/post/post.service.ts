@@ -1,10 +1,4 @@
-import {
-  commentPost,
-  PollAnswer,
-  Prisma,
-  PrismaClient,
-  User,
-} from '@prisma/client';
+import { HashtagType, User } from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
@@ -34,20 +28,14 @@ export class PostService {
   ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
-    const findUser = await this._dbService.user.findUnique({
-      where: { id: user.id, deletedAt: null },
-    });
-
-    if (!findUser) {
-      throw new BadRequestException('user donot exist');
-    }
+    await this._util.checkUserExistOrNot({ userId: user.id });
 
     const mediaExists = await this._dbService.media.findMany({
       where: { id: { in: payload.mediaIds } },
     });
 
     if (!mediaExists.length || payload.mediaIds.length == 0) {
-      throw new BadRequestException('media donot exist');
+      throw new BadRequestException('media does not exist');
     }
 
     if (payload.caption && payload.poll) {
@@ -92,8 +80,6 @@ export class PostService {
         const pollsData = payload.poll.map((poll) => ({
           question: poll.question,
           options: poll.options,
-          //  post: { connect: { id: post.id } },
-          //  pollCreator: { connect: { id: user.id } },
           postId: post.id,
           pollCreatorId: user.id,
         }));
@@ -103,16 +89,56 @@ export class PostService {
         });
       }
 
+      // taggUser in post along with push notificatio to taggedUsers
       if (payload?.userIds && payload?.userIds?.length) {
         const taggedData = payload.userIds.map((userId) => ({
           taggedUserId: userId,
           postId: post.id,
         }));
-
         await prisma.taggedPost.createMany({
           data: taggedData,
           skipDuplicates: true, // Optional: avoids error if a tag already exists for the same user-post pair
         });
+
+        const taggedPosts = await prisma.taggedPost.findMany({
+          where: { postId: post.id, taggedUserId: { in: payload.userIds } },
+          select: { id: true },
+        });
+        const taggedPostIds: number[] = taggedPosts.map(
+          (tagPost) => tagPost.id,
+        );
+
+        const usersFcms = await this._util.findUsersFcm(payload.userIds);
+        const message = `${user.firstName} has tagged you in ${user.gender === 'MALE' ? 'his' : 'her'} post`;
+
+        await this._notification.taggedOnPost({
+          fcms: usersFcms,
+          message: message,
+          taggedUserIds: payload.userIds,
+          topic: 'tagged_post',
+          title: 'Tagged On Post',
+          userId: user.id,
+          taggedPostIds,
+          postId: post.id,
+          prisma,
+        });
+      }
+
+      // extract #hashtags from caption and store in separate model
+      if (payload.caption) {
+        const hashtags = await this._util.extractHashtags(payload.caption);
+        if (hashtags.length) {
+          const hashes = hashtags.map((tag) => ({
+            postId: post.id,
+            creatorId: user.id,
+            tag,
+            type: HashtagType.POST,
+          }));
+          await prisma.hashtag.createMany({
+            data: hashes,
+            skipDuplicates: true,
+          });
+        }
       }
 
       return post;
@@ -228,6 +254,7 @@ export class PostService {
       where: { id: postId, creatorId: user.id, deletedAt: null },
       include: {
         media: true,
+        hashtags: true,
       },
     });
 
@@ -244,7 +271,7 @@ export class PostService {
       (id) => !existingMediaIds.includes(id),
     );
 
-    await this._dbService.$transaction(async (prisma) => {
+    const result = await this._dbService.$transaction(async (prisma) => {
       if (mediaIdsToRemove.length > 0) {
         await prisma.media.deleteMany({
           where: { id: { in: mediaIdsToRemove }, postId },
@@ -262,7 +289,46 @@ export class PostService {
         });
       }
 
-      await prisma.post.update({
+      if (payload.caption) {
+        const newHashtags = await this._util.extractHashtags(payload.caption);
+        const existingHashtags = findPost.hashtags.map((h) => h.tag);
+
+        // Determine hashtags to add and remove
+        const hashtagsToAdd = newHashtags.filter(
+          (tag) => !existingHashtags.includes(tag),
+        );
+        const hashtagsToRemove = existingHashtags.filter(
+          (tag) => !newHashtags.includes(tag),
+        );
+
+        // Remove old hashtags
+        if (hashtagsToRemove.length > 0) {
+          await prisma.hashtag.deleteMany({
+            where: {
+              tag: { in: hashtagsToRemove },
+              postId: findPost.id,
+              creatorId: user.id,
+            },
+          });
+        }
+
+        // Add new hashtags
+        if (hashtagsToAdd.length > 0) {
+          const hashes = hashtagsToAdd.map((tag) => ({
+            postId: postId,
+            creatorId: user.id,
+            tag,
+            type: HashtagType.POST,
+          }));
+
+          await prisma.hashtag.createMany({
+            data: hashes,
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      const updatedPost = await prisma.post.update({
         where: { id: findPost.id },
         data: {
           audience: payload.audience || findPost.audience,
@@ -270,15 +336,16 @@ export class PostService {
           feedType: payload.feedType || findPost.feedType,
           likedByCreator: false,
           location: payload.location || findPost.location,
-          updatedAt: new Date(),
         },
       });
+
+      return updatedPost;
     });
 
     return {
       status: true,
       message: 'post has been updated successfully',
-      data: findPost,
+      data: result,
     };
   }
 
@@ -816,6 +883,11 @@ export class PostService {
         location: true,
         poll: true,
         likedByCreator: true,
+        hashtags: {
+          select: {
+            tag: true,
+          },
+        },
         media: {
           select: {
             id: true,
