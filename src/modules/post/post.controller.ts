@@ -1,9 +1,10 @@
-import { Controller, Body, Param } from '@nestjs/common';
+import { Controller, Body, Param, Query } from '@nestjs/common';
 import { PostService } from './post.service';
 import {
   commentOnPostDto,
   CreatePostDto,
   createSavedPostFolderDto,
+  getLikesOfCommentInAPostDto,
   likeCommentOfPostDto,
   PollAnswerDTO,
   savedPostDTO,
@@ -285,16 +286,13 @@ export class PostController {
     return this._postService.answerPoll(user, payload);
   }
 
-  // @Authorized()
-  // @Get({
-  //   path: '/comment/likes/:parentCommentId',
-  //   description: 'Get Likes of comment of a Post',
-  //   response: APIResponseDTO,
-  // })
-  // CommentLikesOfPost(
-  //   @CurrentUser() user: User,
-  //   @Param('parentCommentId') commentId: string,
-  // ): Promise<APIResponseDTO> {
-  //   return this._postService.getLikesOfComment(Number(commentId));
-  // }
+  @Authorized()
+  @Get({
+    path: '/comment/allLikes',
+    description: 'Get Likes of a comment in a Post',
+    response: APIResponseDTO,
+  })
+  async getLikesOfCommentInAPost(@Query() query: getLikesOfCommentInAPostDto) {
+    return await this._postService.getCommentLikedByUsers(query);
+  }
 }

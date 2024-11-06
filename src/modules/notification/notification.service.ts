@@ -26,25 +26,29 @@ export class NotificationService {
     userFollowId,
     topic,
   }: followProp) {
-    if (fcm) {
-      await this._firebase.push(fcm, {
-        title,
-        data,
-        message,
-        topic,
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.FOLLOW,
+          data,
+          message,
+          userFollow: { connect: { id: userFollowId } },
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: toBeFollowUserId } },
+        },
       });
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
-    await this._db.notification.create({
-      data: {
-        title,
-        type: NotificationType.FOLLOW,
-        data,
-        message,
-        userFollow: { connect: { id: userFollowId } },
-        sender: { connect: { id: userId } },
-        reciever: { connect: { id: toBeFollowUserId } },
-      },
-    });
   }
 
   async sentFollowRequest({
@@ -57,25 +61,29 @@ export class NotificationService {
     userId,
     data,
   }: followRequest) {
-    if (fcm) {
-      await this._firebase.push(fcm, {
-        title,
-        data,
-        message,
-        topic,
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.FOLLOW_REQUEST,
+          data,
+          message,
+          followRequest: { connect: { id: followRequestId } },
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverId } },
+        },
       });
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
-    await this._db.notification.create({
-      data: {
-        title,
-        type: NotificationType.FOLLOW,
-        data,
-        message,
-        followRequest: { connect: { id: followRequestId } },
-        sender: { connect: { id: userId } },
-        reciever: { connect: { id: requestRecieverId } },
-      },
-    });
   }
 
   async likeOnPost({
@@ -89,30 +97,34 @@ export class NotificationService {
     requestRecieverId,
     postId,
   }: LikePostProp) {
-    if (fcm) {
-      await this._firebase.push(fcm, {
-        title,
-        data,
-        message,
-        topic,
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      const notification = await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.POST_LIKE,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverId } },
+          likePost: { connect: { id: likePostId } },
+          post: { connect: { id: postId } },
+        },
       });
+      this.emitNotificationList(
+        `notifications.${requestRecieverId}`,
+        notification,
+      );
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
-    const notification = await this._db.notification.create({
-      data: {
-        title,
-        type: NotificationType.POST_LIKE,
-        data,
-        message,
-        sender: { connect: { id: userId } },
-        reciever: { connect: { id: requestRecieverId } },
-        likePost: { connect: { id: likePostId } },
-        post: { connect: { id: postId } },
-      },
-    });
-    this.emitNotificationList(
-      `notifications.${requestRecieverId}`,
-      notification,
-    );
   }
 
   async acceptFollow({
@@ -125,25 +137,29 @@ export class NotificationService {
     userId,
     data,
   }: acceptFollowProp) {
-    if (fcm) {
-      await this._firebase.push(fcm, {
-        title,
-        data,
-        message,
-        topic,
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.ACCEPT_FOLLOW_REQUEST,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestedUserId } },
+          userFollow: { connect: { id: userFollowId } },
+        },
       });
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
-    await this._db.notification.create({
-      data: {
-        title,
-        type: NotificationType.FOLLOW,
-        data,
-        message,
-        sender: { connect: { id: userId } },
-        reciever: { connect: { id: requestedUserId } },
-        userFollow: { connect: { id: userFollowId } },
-      },
-    });
   }
 
   async taggedOnPost({
@@ -158,28 +174,34 @@ export class NotificationService {
     postId,
     prisma,
   }: taggedOnPostProp) {
-    if (fcms.length > 0) {
-      await this._firebase.pushMulti(fcms, {
-        title,
-        data,
-        message,
-        topic,
-      });
-    }
-    const manyData = taggedUserIds.map((tagUserId: number, index: number) => ({
-      title,
-      type: NotificationType.TAG_POST,
-      data,
-      message,
-      postId: postId,
-      senderId: userId,
-      recieverId: tagUserId,
-      taggedPostId: taggedPostIds[index], // Use the index to get the corresponding taggedPostId
-    }));
+    try {
+      if (fcms.length > 0) {
+        await this._firebase.pushMulti(fcms, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      const manyData = taggedUserIds.map(
+        (tagUserId: number, index: number) => ({
+          title,
+          type: NotificationType.TAG_POST,
+          data,
+          message,
+          postId: postId,
+          senderId: userId,
+          recieverId: tagUserId,
+          taggedPostId: taggedPostIds[index], // Use the index to get the corresponding taggedPostId
+        }),
+      );
 
-    await prisma.notification.createMany({
-      data: manyData,
-    });
+      await prisma.notification.createMany({
+        data: manyData,
+      });
+    } catch (error) {
+      console.log('error sending notification ==>', error);
+    }
   }
 
   async likeOnStory({
@@ -193,30 +215,34 @@ export class NotificationService {
     requestRecieverId,
     storyId,
   }: LikeOnStoryProp) {
-    if (fcm) {
-      await this._firebase.push(fcm, {
-        title,
-        data,
-        message,
-        topic,
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      const notification = await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.STORY_LIKE,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverId } },
+          likeStory: { connect: { id: likeStoryId } },
+          story: { connect: { id: storyId } },
+        },
       });
+      this.emitNotificationList(
+        `notifications.${requestRecieverId}`,
+        notification,
+      );
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
-    const notification = await this._db.notification.create({
-      data: {
-        title,
-        type: NotificationType.STORY_LIKE,
-        data,
-        message,
-        sender: { connect: { id: userId } },
-        reciever: { connect: { id: requestRecieverId } },
-        likeStory: { connect: { id: likeStoryId } },
-        story: { connect: { id: storyId } },
-      },
-    });
-    this.emitNotificationList(
-      `notifications.${requestRecieverId}`,
-      notification,
-    );
   }
 
   async likeOnReel({
@@ -230,30 +256,34 @@ export class NotificationService {
     likeReelId,
     reelId,
   }: LikeOnReelProp) {
-    if (fcm) {
-      await this._firebase.push(fcm, {
-        title,
-        data,
-        message,
-        topic,
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      const notification = await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.REEL_LIKE,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverId } },
+          likeReel: { connect: { id: likeReelId } },
+          reel: { connect: { id: reelId } },
+        },
       });
+      this.emitNotificationList(
+        `notifications.${requestRecieverId}`,
+        notification,
+      );
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
-    const notification = await this._db.notification.create({
-      data: {
-        title,
-        type: NotificationType.REEL_LIKE,
-        data,
-        message,
-        sender: { connect: { id: userId } },
-        reciever: { connect: { id: requestRecieverId } },
-        likeReel: { connect: { id: likeReelId } },
-        reel: { connect: { id: reelId } },
-      },
-    });
-    this.emitNotificationList(
-      `notifications.${requestRecieverId}`,
-      notification,
-    );
   }
 
   async pushOnPostComment({
@@ -271,60 +301,44 @@ export class NotificationService {
     postId,
     prismaInstance,
   }: commentOnPostOrReply) {
-    if (isParentComment && typeof fcmTokens === 'string') {
-      await this._firebase.push(fcmTokens, {
-        title,
-        data,
-        message,
-        topic,
-      });
-    } else {
-      if (fcmTokens.length && Array.isArray(fcmTokens)) {
-        await this._firebase.pushMulti(fcmTokens, {
+    try {
+      if (isParentComment && typeof fcmTokens === 'string') {
+        await this._firebase.push(fcmTokens, {
           title,
           data,
           message,
           topic,
         });
+      } else {
+        if (fcmTokens.length && Array.isArray(fcmTokens)) {
+          await this._firebase.pushMulti(fcmTokens, {
+            title,
+            data,
+            message,
+            topic,
+          });
+        }
       }
-    }
 
-    if (isParentComment && typeof requestRecieverIds === 'number') {
-      const notification = await prismaInstance.notification.create({
-        data: {
-          title,
-          type: NotificationType.COMMENT_POST,
-          data,
-          message,
-          sender: { connect: { id: userId } },
-          reciever: { connect: { id: requestRecieverIds } },
-          commentPost: { connect: { id: commentPostId } },
-          post: { connect: { id: postId } },
-        },
-      });
-      this.emitNotificationList(
-        `notifications.${requestRecieverIds}`,
-        notification,
-      );
-    } else if (typeof requestRecieverIds !== 'number') {
-      const manyData = requestRecieverIds.map((recieverId: number) => ({
-        title,
-        type: NotificationType.COMMENT_POST,
-        data,
-        message,
-        senderId: userId,
-        recieverId: recieverId,
-        commentPostId: commentPostId,
-        postId,
-      }));
-
-      await prismaInstance.notification.createMany({
-        data: manyData,
-        skipDuplicates: true,
-      });
-
-      requestRecieverIds.forEach((recieverId: number) => {
-        const notification = {
+      if (isParentComment && typeof requestRecieverIds === 'number') {
+        const notification = await prismaInstance.notification.create({
+          data: {
+            title,
+            type: NotificationType.COMMENT_POST,
+            data,
+            message,
+            sender: { connect: { id: userId } },
+            reciever: { connect: { id: requestRecieverIds } },
+            commentPost: { connect: { id: commentPostId } },
+            post: { connect: { id: postId } },
+          },
+        });
+        this.emitNotificationList(
+          `notifications.${requestRecieverIds}`,
+          notification,
+        );
+      } else if (typeof requestRecieverIds !== 'number') {
+        const manyData = requestRecieverIds.map((recieverId: number) => ({
           title,
           type: NotificationType.COMMENT_POST,
           data,
@@ -333,10 +347,133 @@ export class NotificationService {
           recieverId: recieverId,
           commentPostId: commentPostId,
           postId,
-        };
+        }));
 
-        this.emitNotificationList(`notifications.${recieverId}`, notification);
+        await prismaInstance.notification.createMany({
+          data: manyData,
+          skipDuplicates: true,
+        });
+
+        requestRecieverIds.forEach((recieverId: number) => {
+          const notification = {
+            title,
+            type: NotificationType.COMMENT_POST,
+            data,
+            message,
+            senderId: userId,
+            recieverId: recieverId,
+            commentPostId: commentPostId,
+            postId,
+          };
+
+          this.emitNotificationList(
+            `notifications.${recieverId}`,
+            notification,
+          );
+        });
+      }
+    } catch (error) {
+      console.log('error sending notification ==>', error);
+    }
+  }
+
+  async pushOnLikePostComment({
+    fcm,
+    title,
+    data,
+    message,
+    topic,
+    userId,
+    requestRecieverId,
+    postId,
+    commentPostId,
+    prisma,
+  }: likeOnCommentOfPost) {
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      const notification = await prisma.notification.create({
+        data: {
+          title,
+          type: NotificationType.POST_COMMENT_LIKE,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverId } },
+          post: { connect: { id: postId } },
+          commentPost: { connect: { id: commentPostId } },
+        },
       });
+      this.emitNotificationList(
+        `notifications.${requestRecieverId}`,
+        notification,
+      );
+    } catch (error) {
+      console.log('error sending notification ==>', error);
+    }
+  }
+
+  async pushUserHasNewPost({
+    fcms,
+    title,
+    data,
+    message,
+    topic,
+    userId,
+    requestRecieverId,
+    postId,
+    saveToDatabase = false,
+  }: userHasNewPostProp) {
+    try {
+      if (fcms) {
+        await this._firebase.pushMulti(fcms, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      // if (saveToDatabase) {
+      //   const manyData = requestRecieverId.map((recieverId: number) => ({
+      //     title,
+      //     type: NotificationType.COMMENT_POST,
+      //     data,
+      //     message,
+      //     senderId: userId,
+      //     recieverId: recieverId,
+      //     postId,
+      //   }));
+
+      //   await this._db.notification.createMany({
+      //     data: manyData,
+      //     skipDuplicates: true,
+      //   });
+
+      //   requestRecieverId.forEach((recieverId: number) => {
+      //     const notification = {
+      //       title,
+      //       type: NotificationType.COMMENT_POST,
+      //       data,
+      //       message,
+      //       senderId: userId,
+      //       recieverId: recieverId,
+      //       postId,
+      //     };
+
+      //     this.emitNotificationList(
+      //       `notifications.${recieverId}`,
+      //       notification,
+      //     );
+      //   });
+      // }
+    } catch (error) {
+      console.log('error sending notification ==>', error);
     }
   }
 
@@ -564,4 +701,23 @@ interface commentOnPostOrReply {
   commentPostId: number;
   postId: number;
   prismaInstance: Prisma.TransactionClient;
+}
+
+interface likeOnCommentOfPost extends firebaseBody {
+  requestRecieverId: number;
+  postId: number;
+  commentPostId: number;
+  prisma: Prisma.TransactionClient;
+}
+
+interface userHasNewPostProp {
+  fcms: string[];
+  title: string;
+  topic: string;
+  data?: any;
+  message: string;
+  userId: number;
+  requestRecieverId: number[];
+  postId: number;
+  saveToDatabase?: boolean;
 }

@@ -29,7 +29,20 @@ export class UtilityService {
   async CheckCommentOnPostExistOrNot(commentId: number, postId: number) {
     const commentFound = await this._dbService.commentPost.findUnique({
       where: { id: commentId, postId, deletedAt: null },
-      include: { replies: true, _count: true },
+      include: {
+        replies: true,
+        _count: true,
+        commentator: {
+          select: {
+            devices: {
+              select: {
+                fcmToken: true,
+              },
+              where: { deletedAt: null },
+            },
+          },
+        },
+      },
     });
     if (!commentFound) {
       throw new NotFoundException('Comment not found.');
@@ -55,7 +68,11 @@ export class UtilityService {
     return findUser;
   }
 
-  async checkMultipleUsersExistOrNot(userIds: number[], whereCondtion?: any) {
+  async checkMultipleUsersExistOrNot(
+    userIds: number[],
+    whereCondtion?: any,
+    customError?: string,
+  ) {
     const users = await this._dbService.user.findMany({
       where: {
         id: { in: userIds },
@@ -64,7 +81,9 @@ export class UtilityService {
       },
     });
     if (users.length !== userIds.length) {
-      throw new NotFoundException('one or more users does not exist');
+      throw new NotFoundException(
+        customError || 'one or more users does not exist',
+      );
     }
     return users;
   }
@@ -121,6 +140,48 @@ export class UtilityService {
     return {
       userWhomIFollowIds,
       findUsersWhomIAmFollowing,
+    };
+  }
+
+  async usersFollowingMe(user: User) {
+    const findUsersWhoAreFollowingMe = await this._dbService.user.findMany({
+      where: {
+        followers: {
+          some: {
+            followingId: user.id, // Check for users who follow you
+          },
+        },
+      },
+      include: {
+        _count: {
+          select: {
+            followers: true,
+            following: true,
+            stories: true,
+          },
+        },
+        stories: true,
+        profile: {
+          select: {
+            id: true,
+            driveId: true,
+            path: true,
+            extension: true,
+            size: true,
+            name: true,
+            meta: true,
+          },
+        },
+      },
+    });
+
+    const userWhoFollowMeIds = findUsersWhoAreFollowingMe.map(
+      (user) => user.id,
+    );
+
+    return {
+      userWhoFollowMeIds,
+      findUsersWhoAreFollowingMe,
     };
   }
 
@@ -340,22 +401,21 @@ export class UtilityService {
     return userDevice.fcmToken;
   }
 
-  async findUsersFcm(userId: number[]) {
+  async findUsersFcm(userId: number[], throwError?: boolean) {
     const userDevices = await this._dbService.device.findMany({
-      where: { userId: { in: userId }, deletedAt: null },
+      where: {
+        userId: { in: userId },
+        deletedAt: null,
+        fcmToken: { not: null },
+      },
       select: {
         fcmToken: true,
       },
     });
-    if (userId.length !== userDevices.length) {
-      // throw new NotFoundException('one or more user does not have fcm Token');
+    if (throwError === true && userId.length !== userDevices.length) {
       console.error('one or more user does not have fcm Token');
     }
-    const devicesWithFcmTokens = userDevices
-      .filter((device) => device.fcmToken)
-      .map((device) => device.fcmToken);
-
-    return devicesWithFcmTokens;
+    return userDevices.map((device) => device.fcmToken);
   }
 
   async extractHashtags(text: string, regex?: any): Promise<string[]> {
@@ -382,7 +442,7 @@ export class UtilityService {
 
   async getPostTaggedUsersIds(postId: number, userIds: number[]) {
     const taggedPosts = await this._dbService.taggedPost.findMany({
-      where: { postId: postId, taggedUserId: { in: userIds } },
+      where: { postId: postId, taggedUserId: { in: userIds }, deletedAt: null },
       select: { id: true },
     });
     const taggedPostIds = taggedPosts.map((tagPost) => tagPost.id);

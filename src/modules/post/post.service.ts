@@ -1,4 +1,4 @@
-import { HashtagType, User } from '@prisma/client';
+import { HashtagType, Prisma, User } from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
@@ -8,6 +8,7 @@ import {
   commentOnPostDto,
   CreatePostDto,
   createSavedPostFolderDto,
+  getLikesOfCommentInAPostDto,
   likeCommentOfPostDto,
   PollAnswerDTO,
   savedPostDTO,
@@ -28,12 +29,21 @@ export class PostService {
   ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
-    const mediaExists = await this._dbService.media.findMany({
-      where: { id: { in: payload.mediaIds } },
-    });
+    const [mediaExists, _usersExist] = await Promise.all([
+      this._dbService.media.findMany({
+        where: { id: { in: payload.mediaIds } },
+      }),
+      payload?.userIds?.length
+        ? this._util.checkMultipleUsersExistOrNot(
+            payload.userIds,
+            null,
+            'one or more users do not exist to be tagged',
+          )
+        : Promise.resolve(),
+    ]);
 
-    if (!mediaExists.length || payload.mediaIds.length == 0) {
-      throw new BadRequestException('media does not exist');
+    if (mediaExists.length !== payload.mediaIds.length) {
+      throw new BadRequestException('one or more media does not exist');
     }
 
     if (payload.caption && payload.poll) {
@@ -42,21 +52,13 @@ export class PostService {
       );
     }
 
-    if (payload?.userIds && payload?.userIds?.length) {
-      const multiUsers = await this._util.checkMultipleUsersExistOrNot(
-        payload.userIds,
-      );
-      if (multiUsers.length !== payload.userIds.length) {
-        throw new BadRequestException(
-          'one or more users do not exist to be tagged',
-        );
-      }
-      const searchTaggedUserIsNotPostCreator = payload.userIds.includes(
-        user.id,
-      );
-      if (searchTaggedUserIsNotPostCreator) {
-        throw new BadRequestException('you cannot tagg yourself in a post');
-      }
+    if (payload.userIds.length && payload.userIds.includes(user.id)) {
+      throw new BadRequestException('you cannot tag yourself in a post');
+    }
+
+    let UserFcms: string[];
+    if (payload.userIds.length) {
+      UserFcms = await this._util.findUsersFcm(payload.userIds);
     }
 
     const createdPost = await this._dbService.$transaction(async (prisma) => {
@@ -74,75 +76,98 @@ export class PostService {
         },
       });
 
-      if (payload.poll && Array.isArray(payload.poll)) {
+      const promises: Promise<any>[] = [];
+
+      if (payload.poll) {
         const pollsData = payload.poll.map((poll) => ({
           question: poll.question,
           options: poll.options,
           postId: post.id,
           pollCreatorId: user.id,
         }));
-
-        await prisma.poll.createMany({
-          data: pollsData,
-        });
+        promises.push(prisma.poll.createMany({ data: pollsData }));
       }
 
       // taggUser in post along with push notificatio to taggedUsers
-      if (payload?.userIds && payload?.userIds?.length) {
-        const taggedData = payload.userIds.map((userId) => ({
+      if (payload?.userIds?.length) {
+        const taggedData = payload.userIds.map((userId: number) => ({
           taggedUserId: userId,
           postId: post.id,
         }));
-        await prisma.taggedPost.createMany({
-          data: taggedData,
-          skipDuplicates: true, // Optional: avoids error if a tag already exists for the same user-post pair
-        });
+        promises.push(
+          prisma.taggedPost.createMany({
+            data: taggedData,
+            skipDuplicates: true,
+          }),
+        );
 
-        const taggedPostIds = await this._util.getPostTaggedUsersIds(
+        const taggedPostIdsPromise = await this._util.getPostTaggedUsersIds(
           post.id,
           payload.userIds,
         );
 
-        const usersFcms = await this._util.findUsersFcm(payload.userIds);
-        const message = `${user.firstName} has tagged you in ${user.gender === 'MALE' ? 'his' : 'her'} post`;
+        const [taggedPostIds, usersFcms] = await Promise.all([
+          taggedPostIdsPromise,
+          UserFcms,
+        ]);
 
-        await this._notification.taggedOnPost({
-          fcms: usersFcms,
-          message: message,
-          taggedUserIds: payload.userIds,
-          topic: 'tagged_post',
-          title: 'Tagged On Post',
-          userId: user.id,
-          taggedPostIds,
-          postId: post.id,
-          prisma,
-        });
+        promises.push(
+          this._notification.taggedOnPost({
+            fcms: usersFcms,
+            message: `${user.firstName} has tagged you in ${
+              user.gender === 'MALE' ? 'his' : 'her'
+            } post`,
+            taggedUserIds: payload.userIds,
+            topic: 'tagged_post',
+            title: 'Tagged On Post',
+            userId: user.id,
+            taggedPostIds,
+            postId: post.id,
+            prisma,
+          }),
+        );
       }
 
       // extract #hashtags from caption and store in separate model
-      if (payload.caption) {
+      if (payload.caption && payload.caption.includes('#')) {
         const hashtags = await this._util.extractHashtags(payload.caption);
-        if (hashtags.length) {
+        if (hashtags.length > 0) {
           const hashes = hashtags.map((tag) => ({
             postId: post.id,
             creatorId: user.id,
             tag,
             type: HashtagType.POST,
           }));
-          await prisma.hashtag.createMany({
-            data: hashes,
-            skipDuplicates: true,
-          });
+          promises.push(
+            prisma.hashtag.createMany({ data: hashes, skipDuplicates: true }),
+          );
         }
       }
+
+      await Promise.all(promises);
 
       return post;
     });
 
+    const { userWhoFollowMeIds } = await this._util.usersFollowingMe(user);
+    if (userWhoFollowMeIds.length > 0) {
+      const fcms = await this._util.findUsersFcm(userWhoFollowMeIds);
+      await this._notification.pushUserHasNewPost({
+        fcms,
+        message: `${user.firstName} has a new post`,
+        postId: createdPost.id,
+        userId: user.id,
+        requestRecieverId: userWhoFollowMeIds,
+        topic: `new_post.${createdPost.id}.creator_${user.id}`,
+        title: 'New Post',
+        saveToDatabase: false,
+      });
+    }
+
     return {
       status: true,
       message: 'Post created successfully',
-      data: createdPost,
+      data: null,
     };
   }
 
@@ -964,91 +989,47 @@ export class PostService {
         },
       });
 
-      console.log('user commenting Id ==>', user.id);
-
-      // if (newComment.commentatorId !== user.id) {
       // for single comment on post (which does not have parent comment)
       // means not replying to any particular just directly commenting on post
-      if (!payload.parentCommentId) {
-        const fcmToken = await this._util.findUserFcm(user.id);
-        console.log('findPost creatorId ==>', findPost.creatorId);
-        console.log('fcmToken ==>', fcmToken);
-
-        await this._notification.pushOnPostComment({
-          fcmTokens: fcmToken,
-          message: `${user.firstName} has commented on your post`,
-          isParentComment: true,
-          requestRecieverIds: findPost.creatorId,
-          title: 'Comment On Post',
-          topic: `post_comment_${postId}`,
-          userId: user.id,
-          parentCommentId: payload.parentCommentId,
-          postCreatorId: findPost.creatorId,
-          commentPostId: newComment.id,
+      if (
+        !payload.parentCommentId &&
+        newComment.commentatorId !== findPost.creatorId
+      ) {
+        await this.otherUserCommentedOnPost({
+          findPost,
+          newComment,
           postId,
-          prismaInstance: prisma,
+          prisma,
+          user,
         });
-      } else {
-        // for sending notification to multiple users
-        // means having parentCommentId i am replying to a comment in a post
-        const usersIamRepyingInAPostIds = await this._dbService.commentPost
-          .findMany({
-            where: {
-              parentCommentId: payload.parentCommentId,
-              postId,
-              post: { creatorId: findPost.creatorId },
-              NOT: {
-                commentatorId: user.id,
-              },
-            },
-            select: {
-              commentatorId: true,
-              commentator: {
-                select: {
-                  devices: {
-                    where: { deletedAt: null },
-                    select: { fcmToken: true },
-                  },
-                },
-              },
-            },
-            distinct: ['commentatorId'],
-          })
-          .then((post) =>
-            post.map((comment) => {
-              return {
-                fcmToken: comment.commentator.devices[0].fcmToken,
-                commentatorId: comment.commentatorId,
-              };
-            }),
-          );
+      }
 
-        console.log('usersIamRepyingInAPostIds ==>', usersIamRepyingInAPostIds);
-
-        await this._notification.pushOnPostComment({
-          fcmTokens: usersIamRepyingInAPostIds.map((user) => user.fcmToken),
-          message: `${user.firstName} has replied to your comment`,
-          isParentComment: false,
-          requestRecieverIds: usersIamRepyingInAPostIds.map(
-            (user) => user.commentatorId,
-          ),
-          title: 'Reply To Comment On Post',
-          topic: `reply.${newComment.id}_parentCommentId.${payload.parentCommentId}_post.${postId}`,
-          userId: user.id,
-          parentCommentId: payload.parentCommentId,
-          postCreatorId: findPost.creatorId,
-          commentPostId: newComment.id,
+      // for sending notification to multiple users
+      // means having parentCommentId i am replying to a comment in a post
+      if (payload.parentCommentId) {
+        await this.userNestedCommentOnPost({
+          findPost,
+          newComment,
           postId,
-          prismaInstance: prisma,
+          user,
+          prisma,
+          parentCommentId: payload.parentCommentId,
         });
       }
 
       // post author has commented on post
-      // if (
-      //   !payload.parentCommentId &&
-      //   newComment.commentatorId === findPost.creatorId
-      // ) {
-      // }
+      if (
+        !payload.parentCommentId &&
+        newComment.commentatorId === findPost.creatorId
+      ) {
+        await this.postAuthorCommentedOnPost({
+          findPost,
+          newComment,
+          postId,
+          prisma,
+          user,
+        });
+      }
 
       return newComment;
     });
@@ -1153,6 +1134,42 @@ export class PostService {
     };
   }
 
+  async getCommentLikedByUsers(
+    query: getLikesOfCommentInAPostDto,
+  ): Promise<APIResponseDTO> {
+    const { commentId, postId } = query;
+
+    const findLikesOfCommentInAPost =
+      await this._dbService.commentPost.findUnique({
+        where: { id: commentId, postId, deletedAt: null },
+      });
+
+    if (!findLikesOfCommentInAPost) {
+      throw new BadRequestException('Comment does not exists');
+    }
+
+    const data = await this._dbService.user.findMany({
+      where: {
+        id: { in: findLikesOfCommentInAPost.likedBy },
+      },
+      select: {
+        id: true,
+        fullName: true,
+        profile: {
+          select: {
+            path: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: true,
+      message: 'found likes of a comment',
+      data: data,
+    };
+  }
+
   async deleteCommentOnPost(
     user: User,
     postId: number,
@@ -1213,6 +1230,10 @@ export class PostService {
         },
       });
 
+      await this._dbService.notification.deleteMany({
+        where: { commentPostId: comment.id },
+      });
+
       return {
         status: true,
         message: 'Comment unliked successfully',
@@ -1220,13 +1241,30 @@ export class PostService {
       };
     }
 
-    await this._dbService.commentPost.update({
-      where: {
-        id: comment.id,
-      },
-      data: {
-        likedBy: [...comment.likedBy, user.id],
-      },
+    await this._dbService.$transaction(async (prisma) => {
+      await prisma.commentPost.update({
+        where: {
+          id: comment.id,
+        },
+        data: {
+          likedBy: [...comment.likedBy, user.id],
+        },
+      });
+
+      if (user.id !== comment.commentatorId) {
+        const userFcm = comment.commentator.devices[0]?.fcmToken;
+        await this._notification.pushOnLikePostComment({
+          commentPostId: comment.id,
+          fcm: userFcm,
+          message: `${user.firstName} has liked your comment on a post`,
+          postId,
+          title: 'Like Comment On Post',
+          requestRecieverId: comment.commentatorId,
+          topic: `like_comment.${comment.id}_post.${postId}`,
+          userId: user.id,
+          prisma,
+        });
+      }
     });
 
     return {
@@ -1410,4 +1448,149 @@ export class PostService {
 
     return false;
   }
+
+  private async postAuthorCommentedOnPost({
+    postId,
+    findPost,
+    user,
+    newComment,
+    prisma,
+  }: OtherUserCommentProp) {
+    const distinctUsersInPostComments = await this._dbService.commentPost
+      .findMany({
+        where: {
+          postId,
+          NOT: {
+            commentatorId: findPost.creatorId, // Exclude the post author
+          },
+        },
+        select: {
+          commentatorId: true,
+          commentator: {
+            select: {
+              devices: {
+                where: { deletedAt: null },
+                select: { fcmToken: true },
+              },
+            },
+          },
+        },
+        distinct: ['commentatorId'],
+      })
+      .then((post) =>
+        post.map((comment) => {
+          return {
+            fcmToken: comment.commentator.devices[0].fcmToken,
+            commentatorId: comment.commentatorId,
+          };
+        }),
+      );
+    await this._notification.pushOnPostComment({
+      fcmTokens: distinctUsersInPostComments.map((user) => user.fcmToken),
+      message: `${user.firstName} has commented on ${user.gender === 'MALE' ? 'his' : 'her'}  post`,
+      isParentComment: false,
+      requestRecieverIds: distinctUsersInPostComments.map(
+        (user) => user.commentatorId,
+      ),
+      title: 'Comment On Post',
+      topic: `post.${postId}_user.${user.id}`,
+      userId: user.id,
+      commentPostId: newComment.id,
+      postId,
+      prismaInstance: prisma,
+    });
+  }
+
+  private async otherUserCommentedOnPost({
+    user,
+    findPost,
+    postId,
+    newComment,
+    prisma,
+  }: OtherUserCommentProp) {
+    const fcmToken = await this._util.findUserFcm(user.id);
+
+    await this._notification.pushOnPostComment({
+      fcmTokens: fcmToken,
+      message: `${user.firstName} has commented on your post`,
+      isParentComment: true,
+      requestRecieverIds: findPost.creatorId,
+      title: 'Comment On Post',
+      topic: `post_comment_${postId}`,
+      userId: user.id,
+      commentPostId: newComment.id,
+      postId,
+      prismaInstance: prisma,
+    });
+  }
+
+  private async userNestedCommentOnPost({
+    postId,
+    parentCommentId,
+    findPost,
+    user,
+    newComment,
+    prisma,
+  }: nestedUserCommentProp) {
+    const usersIamRepyingInAPostIds = await this._dbService.commentPost
+      .findMany({
+        where: {
+          parentCommentId: parentCommentId,
+          postId,
+          post: { creatorId: findPost.creatorId },
+          NOT: {
+            commentatorId: user.id,
+          },
+        },
+        select: {
+          commentatorId: true,
+          commentator: {
+            select: {
+              devices: {
+                where: { deletedAt: null },
+                select: { fcmToken: true },
+              },
+            },
+          },
+        },
+        distinct: ['commentatorId'],
+      })
+      .then((post) =>
+        post.map((comment) => {
+          return {
+            fcmToken: comment.commentator.devices[0].fcmToken,
+            commentatorId: comment.commentatorId,
+          };
+        }),
+      );
+
+    await this._notification.pushOnPostComment({
+      fcmTokens: usersIamRepyingInAPostIds.map((user) => user.fcmToken),
+      message: `${user.firstName} has replied to your comment`,
+      isParentComment: false,
+      requestRecieverIds: usersIamRepyingInAPostIds.map(
+        (user) => user.commentatorId,
+      ),
+      title: 'Reply To Comment On Post',
+      topic: `reply.${newComment.id}_parentCommentId.${parentCommentId}_post.${postId}`,
+      userId: user.id,
+      parentCommentId: parentCommentId,
+      postCreatorId: findPost.creatorId,
+      commentPostId: newComment.id,
+      postId,
+      prismaInstance: prisma,
+    });
+  }
+}
+
+interface OtherUserCommentProp {
+  user: User;
+  findPost: any;
+  postId: number;
+  newComment: any;
+  prisma: Prisma.TransactionClient;
+}
+
+interface nestedUserCommentProp extends OtherUserCommentProp {
+  parentCommentId: number;
 }

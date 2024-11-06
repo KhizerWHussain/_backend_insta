@@ -1,22 +1,17 @@
-import {
-  ApiOperation,
-  ApiProperty,
-  ApiPropertyOptional,
-} from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AudienceType, PostFeedType } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsOptional,
   IsString,
   IsEnum,
-  IsBoolean,
   IsInt,
   IsArray,
   IsNotEmpty,
-  MaxLength,
   ArrayMaxSize,
   IsNumber,
   ValidateNested,
+  ArrayMinSize,
 } from 'class-validator';
 
 export class createPollDTO {
@@ -41,6 +36,7 @@ export class CreatePostDto {
   @ApiProperty({ description: 'media of the post', required: true })
   @IsNotEmpty()
   @IsArray()
+  @ArrayMinSize(1, { message: 'must contain atleast one media' })
   mediaIds: number[];
 
   @ApiProperty({
@@ -89,10 +85,13 @@ export class CreatePostDto {
   @ApiProperty({
     description: 'Array of poll IDs associated with the post',
     required: false,
+    minLength: 1,
+    isArray: true,
     type: [createPollDTO],
   })
   @IsOptional()
   @IsArray()
+  @ArrayMinSize(1, { message: 'atleast one poll must be created' })
   @ValidateNested({ each: true })
   @Type(() => createPollDTO)
   poll?: createPollDTO[];
@@ -222,4 +221,18 @@ export class PollAnswerDTO {
   @IsString()
   @IsNotEmpty()
   option: string;
+}
+
+export class getLikesOfCommentInAPostDto {
+  @ApiProperty({ description: 'comment id', required: true })
+  @IsNotEmpty()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  commentId: number;
+
+  @ApiProperty({ description: 'comment', required: true })
+  @IsNotEmpty()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
+  postId: number;
 }

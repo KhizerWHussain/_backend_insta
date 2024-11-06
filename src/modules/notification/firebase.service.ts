@@ -99,10 +99,10 @@ export class FirebaseAdminService {
       console.log('notificationSend ==>', notificationSend);
 
       if (notificationSend.failureCount > 0) {
-        notificationSend.responses.forEach((response, index) => {
+        notificationSend.responses.forEach((response: any, i: number) => {
           if (!response.success) {
             console.error(
-              `Failed to send message to ${tokens[index]}: ${response.error?.message}`,
+              `Failed to send message to ${tokens[i]}: ${response.error?.message}`,
             );
           }
         });
