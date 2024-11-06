@@ -37,7 +37,7 @@ export class NotificationService {
     await this._db.notification.create({
       data: {
         title,
-        type: 'FOLLOW',
+        type: NotificationType.FOLLOW,
         data,
         message,
         userFollow: { connect: { id: userFollowId } },
@@ -68,7 +68,7 @@ export class NotificationService {
     await this._db.notification.create({
       data: {
         title,
-        type: 'FOLLOW',
+        type: NotificationType.FOLLOW,
         data,
         message,
         followRequest: { connect: { id: followRequestId } },
@@ -100,7 +100,7 @@ export class NotificationService {
     const notification = await this._db.notification.create({
       data: {
         title,
-        type: 'POST_LIKE',
+        type: NotificationType.POST_LIKE,
         data,
         message,
         sender: { connect: { id: userId } },
@@ -136,7 +136,7 @@ export class NotificationService {
     await this._db.notification.create({
       data: {
         title,
-        type: 'FOLLOW',
+        type: NotificationType.FOLLOW,
         data,
         message,
         sender: { connect: { id: userId } },
@@ -180,6 +180,164 @@ export class NotificationService {
     await prisma.notification.createMany({
       data: manyData,
     });
+  }
+
+  async likeOnStory({
+    fcm,
+    likeStoryId,
+    message,
+    title,
+    topic,
+    userId,
+    data,
+    requestRecieverId,
+    storyId,
+  }: LikeOnStoryProp) {
+    if (fcm) {
+      await this._firebase.push(fcm, {
+        title,
+        data,
+        message,
+        topic,
+      });
+    }
+    const notification = await this._db.notification.create({
+      data: {
+        title,
+        type: NotificationType.STORY_LIKE,
+        data,
+        message,
+        sender: { connect: { id: userId } },
+        reciever: { connect: { id: requestRecieverId } },
+        likeStory: { connect: { id: likeStoryId } },
+        story: { connect: { id: storyId } },
+      },
+    });
+    this.emitNotificationList(
+      `notifications.${requestRecieverId}`,
+      notification,
+    );
+  }
+
+  async likeOnReel({
+    fcm,
+    message,
+    title,
+    topic,
+    userId,
+    data,
+    requestRecieverId,
+    likeReelId,
+    reelId,
+  }: LikeOnReelProp) {
+    if (fcm) {
+      await this._firebase.push(fcm, {
+        title,
+        data,
+        message,
+        topic,
+      });
+    }
+    const notification = await this._db.notification.create({
+      data: {
+        title,
+        type: NotificationType.REEL_LIKE,
+        data,
+        message,
+        sender: { connect: { id: userId } },
+        reciever: { connect: { id: requestRecieverId } },
+        likeReel: { connect: { id: likeReelId } },
+        reel: { connect: { id: reelId } },
+      },
+    });
+    this.emitNotificationList(
+      `notifications.${requestRecieverId}`,
+      notification,
+    );
+  }
+
+  async pushOnPostComment({
+    fcmTokens,
+    message,
+    isParentComment,
+    requestRecieverIds,
+    title,
+    topic,
+    userId,
+    data,
+    parentCommentId,
+    postCreatorId,
+    commentPostId,
+    postId,
+    prismaInstance,
+  }: commentOnPostOrReply) {
+    if (isParentComment && typeof fcmTokens === 'string') {
+      await this._firebase.push(fcmTokens, {
+        title,
+        data,
+        message,
+        topic,
+      });
+    } else {
+      if (fcmTokens.length && Array.isArray(fcmTokens)) {
+        await this._firebase.pushMulti(fcmTokens, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+    }
+
+    if (isParentComment && typeof requestRecieverIds === 'number') {
+      const notification = await prismaInstance.notification.create({
+        data: {
+          title,
+          type: NotificationType.COMMENT_POST,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverIds } },
+          commentPost: { connect: { id: commentPostId } },
+          post: { connect: { id: postId } },
+        },
+      });
+      this.emitNotificationList(
+        `notifications.${requestRecieverIds}`,
+        notification,
+      );
+    } else if (typeof requestRecieverIds !== 'number') {
+      const manyData = requestRecieverIds.map((recieverId: number) => ({
+        title,
+        type: NotificationType.COMMENT_POST,
+        data,
+        message,
+        senderId: userId,
+        recieverId: recieverId,
+        commentPostId: commentPostId,
+        postId,
+      }));
+
+      await prismaInstance.notification.createMany({
+        data: manyData,
+        skipDuplicates: true,
+      });
+
+      requestRecieverIds.forEach((recieverId: number) => {
+        const notification = {
+          title,
+          type: NotificationType.COMMENT_POST,
+          data,
+          message,
+          senderId: userId,
+          recieverId: recieverId,
+          commentPostId: commentPostId,
+          postId,
+        };
+
+        this.emitNotificationList(`notifications.${recieverId}`, notification);
+      });
+    }
   }
 
   private timeAgoFormatter(date: Date): string {
@@ -371,4 +529,39 @@ interface taggedOnPostProp {
   taggedPostIds: number[];
   postId: number;
   prisma: Prisma.TransactionClient;
+}
+
+interface LikeOnStoryProp {
+  fcm: string;
+  likeStoryId: number;
+  message: string;
+  title: string;
+  topic: string;
+  userId: number;
+  data?: any;
+  requestRecieverId: number;
+  storyId: number;
+}
+
+interface LikeOnReelProp extends firebaseBody {
+  likeReelId: number;
+  requestRecieverId: number;
+  reelId: number;
+}
+
+interface commentOnPostOrReply {
+  fcmTokens: string | string[];
+  title: string;
+  topic: string;
+  data?: any;
+  message: string;
+  userId: number;
+
+  parentCommentId?: number;
+  postCreatorId?: number;
+  requestRecieverIds: number | number[];
+  isParentComment: boolean;
+  commentPostId: number;
+  postId: number;
+  prismaInstance: Prisma.TransactionClient;
 }

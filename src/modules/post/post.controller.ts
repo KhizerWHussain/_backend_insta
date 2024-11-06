@@ -284,4 +284,17 @@ export class PostController {
   answerPoll(@CurrentUser() user: User, @Body() payload: PollAnswerDTO) {
     return this._postService.answerPoll(user, payload);
   }
+
+  // @Authorized()
+  // @Get({
+  //   path: '/comment/likes/:parentCommentId',
+  //   description: 'Get Likes of comment of a Post',
+  //   response: APIResponseDTO,
+  // })
+  // CommentLikesOfPost(
+  //   @CurrentUser() user: User,
+  //   @Param('parentCommentId') commentId: string,
+  // ): Promise<APIResponseDTO> {
+  //   return this._postService.getLikesOfComment(Number(commentId));
+  // }
 }

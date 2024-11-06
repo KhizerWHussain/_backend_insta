@@ -28,8 +28,6 @@ export class PostService {
   ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
-    await this._util.checkUserExistOrNot({ userId: user.id });
-
     const mediaExists = await this._dbService.media.findMany({
       where: { id: { in: payload.mediaIds } },
     });
@@ -45,10 +43,10 @@ export class PostService {
     }
 
     if (payload?.userIds && payload?.userIds?.length) {
-      const findMultipleUsers = await this._dbService.user.findMany({
-        where: { id: { in: payload.userIds } },
-      });
-      if (findMultipleUsers.length !== payload.userIds.length) {
+      const multiUsers = await this._util.checkMultipleUsersExistOrNot(
+        payload.userIds,
+      );
+      if (multiUsers.length !== payload.userIds.length) {
         throw new BadRequestException(
           'one or more users do not exist to be tagged',
         );
@@ -100,12 +98,9 @@ export class PostService {
           skipDuplicates: true, // Optional: avoids error if a tag already exists for the same user-post pair
         });
 
-        const taggedPosts = await prisma.taggedPost.findMany({
-          where: { postId: post.id, taggedUserId: { in: payload.userIds } },
-          select: { id: true },
-        });
-        const taggedPostIds: number[] = taggedPosts.map(
-          (tagPost) => tagPost.id,
+        const taggedPostIds = await this._util.getPostTaggedUsersIds(
+          post.id,
+          payload.userIds,
         );
 
         const usersFcms = await this._util.findUsersFcm(payload.userIds);
@@ -163,8 +158,13 @@ export class PostService {
     const postDeletionSuccessfull = await this.deletingPostRelatedData(postId);
 
     if (postDeletionSuccessfull) {
-      await this._dbService.post.delete({
-        where: { id: postId, deletedAt: null, creatorId: user.id },
+      await this._dbService.$transaction(async (prisma) => {
+        await prisma.notification.deleteMany({
+          where: { postId },
+        });
+        await prisma.post.delete({
+          where: { id: postId, deletedAt: null, creatorId: user.id },
+        });
       });
     }
 
@@ -937,14 +937,14 @@ export class PostService {
     postId: number,
     payload: commentOnPostDto,
   ): Promise<APIResponseDTO> {
-    await this._util.checkPostExistOrNot(postId);
+    const findPost = await this._util.checkPostExistOrNot(postId);
 
     if (payload.parentCommentId) {
       const parentCommentExists = await this._dbService.commentPost.findUnique({
         where: { id: payload.parentCommentId, deletedAt: null },
       });
       if (!parentCommentExists) {
-        throw new NotFoundException('parent comment dono exist');
+        throw new NotFoundException('parent comment does not exist');
       }
     }
 
@@ -963,6 +963,93 @@ export class PostService {
             : undefined,
         },
       });
+
+      console.log('user commenting Id ==>', user.id);
+
+      // if (newComment.commentatorId !== user.id) {
+      // for single comment on post (which does not have parent comment)
+      // means not replying to any particular just directly commenting on post
+      if (!payload.parentCommentId) {
+        const fcmToken = await this._util.findUserFcm(user.id);
+        console.log('findPost creatorId ==>', findPost.creatorId);
+        console.log('fcmToken ==>', fcmToken);
+
+        await this._notification.pushOnPostComment({
+          fcmTokens: fcmToken,
+          message: `${user.firstName} has commented on your post`,
+          isParentComment: true,
+          requestRecieverIds: findPost.creatorId,
+          title: 'Comment On Post',
+          topic: `post_comment_${postId}`,
+          userId: user.id,
+          parentCommentId: payload.parentCommentId,
+          postCreatorId: findPost.creatorId,
+          commentPostId: newComment.id,
+          postId,
+          prismaInstance: prisma,
+        });
+      } else {
+        // for sending notification to multiple users
+        // means having parentCommentId i am replying to a comment in a post
+        const usersIamRepyingInAPostIds = await this._dbService.commentPost
+          .findMany({
+            where: {
+              parentCommentId: payload.parentCommentId,
+              postId,
+              post: { creatorId: findPost.creatorId },
+              NOT: {
+                commentatorId: user.id,
+              },
+            },
+            select: {
+              commentatorId: true,
+              commentator: {
+                select: {
+                  devices: {
+                    where: { deletedAt: null },
+                    select: { fcmToken: true },
+                  },
+                },
+              },
+            },
+            distinct: ['commentatorId'],
+          })
+          .then((post) =>
+            post.map((comment) => {
+              return {
+                fcmToken: comment.commentator.devices[0].fcmToken,
+                commentatorId: comment.commentatorId,
+              };
+            }),
+          );
+
+        console.log('usersIamRepyingInAPostIds ==>', usersIamRepyingInAPostIds);
+
+        await this._notification.pushOnPostComment({
+          fcmTokens: usersIamRepyingInAPostIds.map((user) => user.fcmToken),
+          message: `${user.firstName} has replied to your comment`,
+          isParentComment: false,
+          requestRecieverIds: usersIamRepyingInAPostIds.map(
+            (user) => user.commentatorId,
+          ),
+          title: 'Reply To Comment On Post',
+          topic: `reply.${newComment.id}_parentCommentId.${payload.parentCommentId}_post.${postId}`,
+          userId: user.id,
+          parentCommentId: payload.parentCommentId,
+          postCreatorId: findPost.creatorId,
+          commentPostId: newComment.id,
+          postId,
+          prismaInstance: prisma,
+        });
+      }
+
+      // post author has commented on post
+      // if (
+      //   !payload.parentCommentId &&
+      //   newComment.commentatorId === findPost.creatorId
+      // ) {
+      // }
+
       return newComment;
     });
 
@@ -1083,9 +1170,13 @@ export class PostService {
     await this._dbService.$transaction(async (prisma) => {
       if (commentExist.replies.length > 0) {
         await prisma.commentPost.deleteMany({
-          where: { parentCommentId: commentId },
+          where: { parentCommentId: commentId, postId },
         });
       }
+
+      await prisma.notification.deleteMany({
+        where: { postId, commentPostId: commentExist.id },
+      });
 
       await prisma.commentPost.delete({
         where: { id: commentId },
@@ -1261,17 +1352,14 @@ export class PostService {
   private async deletingPostRelatedData(postId: number) {
     return await this._dbService.$transaction(async (prisma) => {
       await prisma.media.deleteMany({
-        where: { postId: postId, deletedAt: null },
+        where: { postId: postId },
       });
-
       await prisma.poll.deleteMany({
         where: { postId: postId },
       });
-
       await prisma.savedPost.deleteMany({
         where: { postId: postId },
       });
-
       return true;
     });
   }

@@ -16,12 +16,12 @@ export class UtilityService {
     return moment.duration(time, lap).asSeconds();
   }
 
-  async checkPostExistOrNot(postId: number) {
+  async checkPostExistOrNot(postId: number, customError?: string) {
     const findPost = await this._dbService.post.findUnique({
       where: { id: postId, deletedAt: null, feedType: 'ONFEED' },
     });
     if (!findPost) {
-      throw new NotFoundException('post does not exist');
+      throw new NotFoundException(customError || 'post does not exist');
     }
     return findPost;
   }
@@ -378,6 +378,15 @@ export class UtilityService {
       throw new NotFoundException('chat does not exist');
     }
     return chat;
+  }
+
+  async getPostTaggedUsersIds(postId: number, userIds: number[]) {
+    const taggedPosts = await this._dbService.taggedPost.findMany({
+      where: { postId: postId, taggedUserId: { in: userIds } },
+      select: { id: true },
+    });
+    const taggedPostIds = taggedPosts.map((tagPost) => tagPost.id);
+    return taggedPostIds;
   }
 }
 

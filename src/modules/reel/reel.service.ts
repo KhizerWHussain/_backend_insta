@@ -8,12 +8,14 @@ import { CreateReelDto } from './dto/reel.dto';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
 import { UtilityService } from 'src/util/utility.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class ReelService {
   constructor(
     private readonly _dbService: DatabaseService,
     private readonly _util: UtilityService,
+    private readonly _notification: NotificationService,
   ) {}
 
   async create(user: User, payload: CreateReelDto): Promise<APIResponseDTO> {
@@ -93,7 +95,9 @@ export class ReelService {
       await prisma.media.deleteMany({
         where: { reelid: reelId },
       });
-
+      await prisma.notification.deleteMany({
+        where: { reelId },
+      });
       await prisma.reel.delete({
         where: { id: reelId },
       });
@@ -167,24 +171,28 @@ export class ReelService {
   }
 
   async likeReel(user: User, reelId: number): Promise<APIResponseDTO> {
-    const blockUsers = await this._util.getBlockedUsers(user.id);
-    const blockUsersIds: number[] = blockUsers.map((user) => user.id);
+    const blockUsersIds: number[] = await this._util.getMyBlockedUserIds(
+      user.id,
+    );
 
     const reel = await this.findReelById(reelId, {
       throwErrorIfNotFound: true,
     });
 
     if (blockUsersIds.includes(reel.creatorId)) {
-      throw new Error(
+      throw new BadRequestException(
         'You cannot like a reel created by a user you have blocked.',
       );
     }
 
     const findReelLiked = await this.findReelLiked(reelId, user.id);
 
-    if (findReelLiked.length > 0) {
+    if (findReelLiked) {
       await this._dbService.likeReel.deleteMany({
         where: { reelId, likedByUserId: user.id },
+      });
+      await this._dbService.notification.deleteMany({
+        where: { likeReelId: findReelLiked.id },
       });
       return {
         status: true,
@@ -192,12 +200,29 @@ export class ReelService {
       };
     }
 
-    await this._dbService.likeReel.create({
+    const likeReel = await this._dbService.likeReel.create({
       data: {
         likedByUser: { connect: { id: user.id } },
         reel: { connect: { id: reelId } },
       },
+      select: { id: true },
     });
+
+    if (likeReel.id && reel.creatorId !== user.id) {
+      const UserWhoCreatedStoryFcm = await this._util.findUserFcm(
+        reel.creatorId,
+      );
+      await this._notification.likeOnReel({
+        fcm: UserWhoCreatedStoryFcm,
+        message: `${user.firstName} has liked your reel`,
+        title: 'Reel Liked',
+        topic: 'like_reel',
+        likeReelId: likeReel.id,
+        requestRecieverId: reel.creatorId,
+        userId: user.id,
+        reelId: reel.id,
+      });
+    }
 
     return {
       status: true,
@@ -223,15 +248,11 @@ export class ReelService {
     userId: number,
     { throwErrorIfNotFound = false } = {},
   ) {
-    const findReelLiked = await this._dbService.likeReel.findMany({
+    const findReelLiked = await this._dbService.likeReel.findFirst({
       where: { reelId: id, likedByUserId: userId, deletedAt: null },
     });
 
-    if (
-      !findReelLiked &&
-      !findReelLiked.length &&
-      throwErrorIfNotFound === true
-    ) {
+    if (!findReelLiked && throwErrorIfNotFound === true) {
       throw new BadRequestException('reel has not been liked');
     }
 

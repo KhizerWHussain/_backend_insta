@@ -12,6 +12,7 @@ import { MediaService } from '../media/media.service';
 import { ExcludeFields } from 'src/helpers/util.helper';
 import { UtilityService } from 'src/util/utility.service';
 import { RedisService } from 'src/redis/redis.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class StoryService {
@@ -20,6 +21,7 @@ export class StoryService {
     private readonly _mediaService: MediaService,
     private readonly _util: UtilityService,
     private readonly _redis_cache: RedisService,
+    private readonly _notification: NotificationService,
   ) {}
 
   async createStory(
@@ -27,7 +29,6 @@ export class StoryService {
     payload: CreateStoryDto,
   ): Promise<APIResponseDTO> {
     const { mediaType, mediaIds } = payload;
-    await this._util.checkUserExistOrNot({ userId: user.id });
 
     const checkMediaWithMediaType = await this._mediaService.findMediaByType(
       mediaIds,
@@ -291,6 +292,10 @@ export class StoryService {
         where: { id: { in: findMediaIds } },
       });
 
+      await prisma.notification.deleteMany({
+        where: { storyId },
+      });
+
       await prisma.story.delete({
         where: { id: story.id },
       });
@@ -307,24 +312,27 @@ export class StoryService {
   }
 
   async likeStory(user: User, storyId: number): Promise<APIResponseDTO> {
-    const blockUsers = await this._util.getBlockedUsers(user.id);
-    const blockUsersIds: number[] = blockUsers.map((user) => user.id);
+    const blockUserIds = await this._util.getMyBlockedUserIds(user.id);
 
     const story = await this.findStoryById(storyId, {
       throwErrorIfNotFound: true,
     });
 
-    if (blockUsersIds.includes(story.creatorId)) {
+    if (blockUserIds.includes(story.creatorId)) {
       throw new Error(
         'You cannot like a story created by a user you have blocked.',
       );
     }
 
     const findStoryLiked = await this.findStoryLiked(storyId, user.id);
+    const findStoryLikedIds: number[] = findStoryLiked.map((story) => story.id);
 
     if (findStoryLiked.length > 0) {
       await this._dbService.likeStory.deleteMany({
         where: { storyId, likedByUserId: user.id },
+      });
+      await this._dbService.notification.deleteMany({
+        where: { likeStoryId: { in: findStoryLikedIds } },
       });
       return {
         status: true,
@@ -332,12 +340,29 @@ export class StoryService {
       };
     }
 
-    await this._dbService.likeStory.create({
+    const likeStory = await this._dbService.likeStory.create({
       data: {
         likedByUser: { connect: { id: user.id } },
         story: { connect: { id: storyId } },
       },
+      select: { id: true },
     });
+
+    if (likeStory.id && story.creatorId !== user.id) {
+      const UserWhoCreatedStoryFcm = await this._util.findUserFcm(
+        story.creatorId,
+      );
+      await this._notification.likeOnStory({
+        fcm: UserWhoCreatedStoryFcm,
+        message: `${user.firstName} has liked your story`,
+        title: 'Story Liked',
+        topic: 'like_story',
+        likeStoryId: likeStory.id,
+        requestRecieverId: story.creatorId,
+        userId: user.id,
+        storyId: story.id,
+      });
+    }
 
     return {
       status: true,
