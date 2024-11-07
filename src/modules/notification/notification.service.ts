@@ -431,7 +431,7 @@ export class NotificationService {
     saveToDatabase = false,
   }: userHasNewPostProp) {
     try {
-      if (fcms) {
+      if (fcms.length !== 0) {
         await this._firebase.pushMulti(fcms, {
           title,
           data,
@@ -472,6 +472,43 @@ export class NotificationService {
       //     );
       //   });
       // }
+    } catch (error) {
+      console.log('error sending notification ==>', error);
+    }
+  }
+
+  async pushSentMessageOnChat({
+    fcm,
+    message,
+    postId,
+    requestRecieverId,
+    title,
+    topic,
+    userId,
+    data,
+    chatId,
+  }: postSharedOnChat) {
+    try {
+      if (fcm) {
+        await this._firebase.push(fcm, {
+          title,
+          data,
+          message,
+          topic,
+        });
+      }
+      await this._db.notification.create({
+        data: {
+          title,
+          type: NotificationType.CHAT_MESSAGE,
+          data,
+          message,
+          sender: { connect: { id: userId } },
+          reciever: { connect: { id: requestRecieverId } },
+          post: { connect: { id: postId } },
+          chat: { connect: { id: chatId } },
+        },
+      });
     } catch (error) {
       console.log('error sending notification ==>', error);
     }
@@ -720,4 +757,10 @@ interface userHasNewPostProp {
   requestRecieverId: number[];
   postId: number;
   saveToDatabase?: boolean;
+}
+
+interface postSharedOnChat extends firebaseBody {
+  requestRecieverId: number;
+  postId: number;
+  chatId: number;
 }

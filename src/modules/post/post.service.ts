@@ -12,6 +12,7 @@ import {
   likeCommentOfPostDto,
   PollAnswerDTO,
   savedPostDTO,
+  sharePostToChatDto,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
 } from './dto/post.dto';
@@ -19,6 +20,7 @@ import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
 import { UtilityService } from 'src/util/utility.service';
 import { NotificationService } from '../notification/notification.service';
+import { KafkaService } from '../kafka/kafka.service';
 
 @Injectable()
 export class PostService {
@@ -26,6 +28,7 @@ export class PostService {
     private _dbService: DatabaseService,
     private readonly _util: UtilityService,
     private readonly _notification: NotificationService,
+    private readonly _kafka: KafkaService,
   ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
@@ -54,11 +57,6 @@ export class PostService {
 
     if (payload.userIds.length && payload.userIds.includes(user.id)) {
       throw new BadRequestException('you cannot tag yourself in a post');
-    }
-
-    let UserFcms: string[];
-    if (payload.userIds.length) {
-      UserFcms = await this._util.findUsersFcm(payload.userIds);
     }
 
     const createdPost = await this._dbService.$transaction(async (prisma) => {
@@ -106,32 +104,32 @@ export class PostService {
           payload.userIds,
         );
 
+        const UserFcms = await this._util.findUsersFcm(payload.userIds);
+
         const [taggedPostIds, usersFcms] = await Promise.all([
           taggedPostIdsPromise,
           UserFcms,
         ]);
 
-        promises.push(
-          this._notification.taggedOnPost({
-            fcms: usersFcms,
-            message: `${user.firstName} has tagged you in ${
-              user.gender === 'MALE' ? 'his' : 'her'
-            } post`,
-            taggedUserIds: payload.userIds,
-            topic: 'tagged_post',
-            title: 'Tagged On Post',
-            userId: user.id,
-            taggedPostIds,
-            postId: post.id,
-            prisma,
-          }),
-        );
+        await this._notification.taggedOnPost({
+          fcms: usersFcms,
+          message: `${user.firstName} has tagged you in ${
+            user.gender === 'MALE' ? 'his' : 'her'
+          } post`,
+          taggedUserIds: payload.userIds,
+          topic: 'tagged_post',
+          title: 'Tagged On Post',
+          userId: user.id,
+          taggedPostIds,
+          postId: post.id,
+          prisma,
+        });
       }
 
       // extract #hashtags from caption and store in separate model
       if (payload.caption && payload.caption.includes('#')) {
         const hashtags = await this._util.extractHashtags(payload.caption);
-        if (hashtags.length > 0) {
+        if (hashtags.length! == 0) {
           const hashes = hashtags.map((tag) => ({
             postId: post.id,
             creatorId: user.id,
@@ -149,15 +147,15 @@ export class PostService {
       return post;
     });
 
-    const { userWhoFollowMeIds } = await this._util.usersFollowingMe(user);
-    if (userWhoFollowMeIds.length > 0) {
-      const fcms = await this._util.findUsersFcm(userWhoFollowMeIds);
+    const followers = await this._util.getFollowersFcm(user.id);
+    console.log('followers ==>', followers);
+    if (followers.length > 0) {
       await this._notification.pushUserHasNewPost({
-        fcms,
+        fcms: followers.map((item) => item.fcm),
         message: `${user.firstName} has a new post`,
         postId: createdPost.id,
         userId: user.id,
-        requestRecieverId: userWhoFollowMeIds,
+        requestRecieverId: followers.map((item) => item.id),
         topic: `new_post.${createdPost.id}.creator_${user.id}`,
         title: 'New Post',
         saveToDatabase: false,
@@ -1580,6 +1578,94 @@ export class PostService {
       postId,
       prismaInstance: prisma,
     });
+  }
+
+  async shareToChat(
+    user: User,
+    payload: sharePostToChatDto,
+  ): Promise<APIResponseDTO> {
+    const { postId, sharingToUserId } = payload;
+    await this._util.checkUserExistOrNot({
+      userId: sharingToUserId,
+      whereConditon: { activeStatus: 'ACTIVE' },
+    });
+
+    if (user.id === sharingToUserId) {
+      throw new BadRequestException('cannot share post to yourself');
+    }
+
+    const postExist = await this._dbService.post.findUnique({
+      where: { id: postId, deletedAt: null, feedType: 'ONFEED' },
+    });
+
+    if (!postExist) {
+      throw new NotFoundException('post does not exist');
+    }
+
+    const blockedEachOther = await this._util.findBlockOnBothSides(
+      user.id,
+      sharingToUserId,
+    );
+
+    if (blockedEachOther) {
+      throw new BadRequestException('you cannot share to blocked user');
+    }
+
+    if (payload.chatId) {
+      const chatExist = await this._dbService.chat.findUnique({
+        where: {
+          id: payload.chatId,
+          deletedAt: null,
+          ChatParticipants: {
+            some: {
+              id: { in: [user.id, sharingToUserId] },
+            },
+          },
+        },
+      });
+
+      if (!chatExist) {
+        throw new NotFoundException('chat with this user does not exist');
+      }
+
+      await this._dbService.message.create({
+        data: {
+          messageSender: { connect: { id: user.id } },
+          chatPost: { connect: { id: user.id } },
+          chat: { connect: { id: chatExist.id } },
+        },
+      });
+    }
+
+    if (!payload.chatId) {
+      await this._dbService.$transaction(async (prisma) => {
+        const chat = await prisma.chat.create({
+          data: {
+            type: 'PRIVATE',
+            chatCreator: { connect: { id: user.id } },
+            ChatParticipants: {
+              create: [{ userId: user.id }, { userId: sharingToUserId }],
+            },
+          },
+        });
+        await prisma.message.create({
+          data: {
+            messageSender: { connect: { id: user.id } },
+            chatPost: { connect: { id: user.id } },
+            chat: { connect: { id: chat.id } },
+          },
+        });
+      });
+    }
+
+    // await this._notification.pushSentMessageOnChat({
+    // });
+
+    return {
+      status: true,
+      message: 'post shared to chat',
+      data: null,
+    };
   }
 }
 

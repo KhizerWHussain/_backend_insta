@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   basicSearchDto,
   keywordSearchDto,
@@ -18,7 +18,7 @@ export class SearchService {
     private readonly _redis: RedisService,
   ) {}
 
-  async basic(user: User, query?: basicSearchDto): Promise<APIResponseDTO> {
+  async accounts(user: User, query?: basicSearchDto): Promise<APIResponseDTO> {
     if (!query || !query.keyword || query.keyword.trim() === '') {
       return {
         status: true,
@@ -122,130 +122,121 @@ export class SearchService {
   }
 
   private async performKeywordSearch(keyword: string, userId: number) {
-    const posts = await this._db.post.findMany({
-      where: {
-        deletedAt: null,
-        feedType: 'ONFEED',
-        caption: { contains: keyword, mode: 'insensitive' },
-        creatorId: {
-          not: userId,
+    const promises: any = [];
+
+    // Fetch posts
+    promises.push(
+      this._db.post.findMany({
+        where: {
+          deletedAt: null,
+          feedType: 'ONFEED',
+          caption: { contains: keyword, mode: 'insensitive' },
+          creatorId: { not: userId },
         },
-      },
-      select: {
-        id: true,
-        location: true,
-        creator: {
-          select: {
-            id: true,
-            fullName: true,
-            username: true,
-            profile: {
-              select: {
-                path: true,
-              },
+        select: {
+          id: true,
+          location: true,
+          caption: true,
+          creator: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              profile: { select: { path: true } },
+            },
+          },
+          media: { select: { path: true } },
+        },
+      }),
+    );
+
+    // Fetch users
+    promises.push(
+      this._db.user.findMany({
+        where: {
+          deletedAt: null,
+          activeStatus: 'ACTIVE',
+          OR: [
+            { username: { contains: keyword, mode: 'insensitive' } },
+            { fullName: { contains: keyword, mode: 'insensitive' } },
+            { email: { contains: keyword, mode: 'insensitive' } },
+          ],
+          id: { not: userId },
+        },
+        select: {
+          id: true,
+          username: true,
+          fullName: true,
+          profile: { select: { path: true } },
+        },
+      }),
+    );
+
+    // Fetch reels
+    promises.push(
+      this._db.reel.findMany({
+        where: {
+          deletedAt: null,
+          caption: { contains: keyword, mode: 'insensitive' },
+          creatorId: { not: userId },
+        },
+        select: {
+          id: true,
+          caption: true,
+          media: { select: { path: true } },
+          music: { select: { path: true, name: true } },
+          creator: {
+            select: {
+              id: true,
+              username: true,
+              fullName: true,
+              profile: { select: { path: true } },
             },
           },
         },
-        media: {
-          select: {
-            path: true,
-          },
-        },
-      },
-    });
+      }),
+    );
 
-    const users = await this._db.user.findMany({
-      where: {
-        deletedAt: null,
-        activeStatus: 'ACTIVE',
-        OR: [
-          { username: { contains: keyword, mode: 'insensitive' } },
-          { fullName: { contains: keyword, mode: 'insensitive' } },
-          { email: { contains: keyword, mode: 'insensitive' } },
-        ],
-        id: {
-          not: userId,
+    // Fetch unique locations
+    promises.push(
+      this._db.post.findMany({
+        where: {
+          deletedAt: null,
+          feedType: 'ONFEED',
+          location: { contains: keyword, mode: 'insensitive', not: null },
+          creatorId: { not: userId },
         },
-      },
-      select: {
-        id: true,
-        username: true,
-        fullName: true,
-        profile: {
-          select: {
-            path: true,
-          },
-        },
-      },
-    });
+        select: { location: true },
+        distinct: ['location'],
+      }),
+    );
 
-    const reels = await this._db.reel.findMany({
-      where: {
-        deletedAt: null,
-        caption: { contains: keyword, mode: 'insensitive' },
-        creatorId: {
-          not: userId,
+    // Fetch hashtags
+    promises.push(
+      this._db.hashtag.findMany({
+        where: {
+          tag: { contains: keyword, mode: 'insensitive' },
+          creatorId: { not: userId },
+          deletedAt: null,
         },
-      },
-      select: {
-        id: true,
-        caption: true,
-        media: {
-          select: {
-            path: true,
-          },
-        },
-        music: {
-          select: {
-            path: true,
-            name: true,
-          },
-        },
-        creator: {
-          select: {
-            id: true,
-            username: true,
-            fullName: true,
-            profile: {
-              select: {
-                path: true,
-              },
-            },
-          },
-        },
-      },
-    });
+        distinct: ['tag'],
+        select: { id: true, tag: true },
+      }),
+    );
 
-    const postPlaces = await this._db.post.findMany({
-      where: {
-        deletedAt: null,
-        feedType: 'ONFEED',
-        location: {
-          contains: keyword,
-          mode: 'insensitive',
-        },
-        creatorId: {
-          not: userId,
-        },
-      },
-      select: {
-        location: true,
-      },
-    });
-
-    const uniqueLocations = Array.from(
-      new Set(postPlaces.map((post) => post.location)),
-    ).filter(Boolean);
+    const [posts, users, reels, uniqueLocations, hashtags] =
+      await Promise.all(promises);
 
     return {
       forYou: posts,
       users,
       reels,
       places: uniqueLocations,
+      hashtags,
     };
   }
 
-  async findPostsByLocation(
+  async postByLocation(
     user: User,
     query: postSearchByLocationDto,
   ): Promise<APIResponseDTO> {
@@ -288,6 +279,43 @@ export class SearchService {
       message: 'post by locations found',
       data: posts,
     };
+  }
+
+  async getRecent(user: User) {
+    const findRecentSearched = await this._db.recentSearch.findMany({
+      where: { searchByUserId: user.id, deletedAt: null },
+      select: {
+        id: true,
+        account: true,
+        post: true,
+        reel: true,
+        keyword: true,
+      },
+      distinct: ['keyword'],
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return findRecentSearched;
+  }
+
+  async deleteOne(userId: number, id: number) {
+    const singleSearh = await this._db.recentSearch.findUnique({
+      where: { id, searchByUserId: userId },
+      select: { id: true },
+    });
+    if (!singleSearh) {
+      throw new NotFoundException('recent search not found');
+    }
+    await this._db.recentSearch.delete({
+      where: { id },
+    });
+  }
+
+  async deleteAll(userId: number) {
+    await this._db.recentSearch.deleteMany({
+      where: { searchByUserId: userId },
+    });
   }
 
   async otherUserContent() {}

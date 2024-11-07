@@ -236,3 +236,20 @@ export class getLikesOfCommentInAPostDto {
   @Transform(({ value }) => parseInt(value, 10), { toClassOnly: true })
   postId: number;
 }
+
+export class sharePostToChatDto {
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  chatId?: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  postId: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  sharingToUserId: number;
+}

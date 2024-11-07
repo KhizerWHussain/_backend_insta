@@ -185,6 +185,49 @@ export class UtilityService {
     };
   }
 
+  async myFollowersIds(userId: number) {
+    return await this._dbService.user
+      .findMany({
+        where: {
+          followers: {
+            some: {
+              followingId: userId,
+            },
+          },
+        },
+        select: { id: true },
+        distinct: ['id'],
+      })
+      .then((user) => user.map((i) => i.id));
+  }
+
+  async getFollowersFcm(userId: number) {
+    return this._dbService.user
+      .findMany({
+        where: {
+          followers: {
+            some: {
+              followingId: userId,
+            },
+          },
+        },
+        select: {
+          id: true,
+          devices: {
+            select: { fcmToken: true },
+            where: { deletedAt: null, fcmToken: { not: null } },
+            distinct: ['fcmToken'],
+          },
+        },
+        distinct: ['id'],
+      })
+      .then((user) =>
+        user.map((item) => {
+          return { id: item.id, fcm: item.devices[0]?.fcmToken };
+        }),
+      );
+  }
+
   async getBlockedUsers(userId: number) {
     const usersYouBlocked = await this._dbService.blockedUser.findMany({
       where: {

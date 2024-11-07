@@ -1,6 +1,6 @@
-import { Controller, Query } from '@nestjs/common';
+import { Controller, Param, Query } from '@nestjs/common';
 import { SearchService } from './search.service';
-import { Authorized, CurrentUser, Get } from 'src/core/decorators';
+import { Authorized, CurrentUser, Delete, Get } from 'src/core/decorators';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { User } from '@prisma/client';
 import {
@@ -19,11 +19,8 @@ export class SearchController {
     description: 'basic search for accounts (users)',
     response: APIResponseDTO,
   })
-  async basic(
-    @CurrentUser() user: User,
-    @Query() query: basicSearchDto,
-  ): Promise<APIResponseDTO> {
-    return await this._search.basic(user, query);
+  async basic(@CurrentUser() user: User, @Query() query: basicSearchDto) {
+    return await this._search.accounts(user, query);
   }
 
   @Authorized()
@@ -49,6 +46,38 @@ export class SearchController {
     @CurrentUser() user: User,
     @Query() query: postSearchByLocationDto,
   ) {
-    return await this._search.findPostsByLocation(user, query);
+    return await this._search.postByLocation(user, query);
+  }
+
+  @Authorized()
+  @Get({
+    path: '/getMine',
+    description: 'get my recently searched content',
+    response: APIResponseDTO,
+  })
+  async getRecentSearched(@CurrentUser() user: User) {
+    return await this._search.getRecent(user);
+  }
+
+  @Authorized()
+  @Delete({
+    path: '/delete/recent/:searchedId',
+    description: 'delete single recent search',
+    response: APIResponseDTO,
+  })
+  async deleteSingleSearch(
+    @CurrentUser() user: User,
+    @Param('searchedId') searchedId: number,
+  ) {
+    return await this._search.deleteOne(Number(user.id), Number(searchedId));
+  }
+
+  @Authorized()
+  @Delete({
+    path: '/delete/all',
+    description: 'delete all recent searches',
+  })
+  async deleteAllRecentSearched(@CurrentUser() user: User) {
+    return await this._search.deleteAll(Number(user.id));
   }
 }

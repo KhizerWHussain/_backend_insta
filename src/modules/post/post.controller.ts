@@ -8,6 +8,7 @@ import {
   likeCommentOfPostDto,
   PollAnswerDTO,
   savedPostDTO,
+  sharePostToChatDto,
   UpdatePostDto,
   UpdatePostFeedTypeDto,
 } from './dto/post.dto';
@@ -294,5 +295,18 @@ export class PostController {
   })
   async getLikesOfCommentInAPost(@Query() query: getLikesOfCommentInAPostDto) {
     return await this._postService.getCommentLikedByUsers(query);
+  }
+
+  @Authorized()
+  @Post({
+    path: '/share',
+    description: 'share post to chat',
+    response: APIResponseDTO,
+  })
+  async sharePostToChat(
+    @CurrentUser() user: User,
+    @Body() payload: sharePostToChatDto,
+  ) {
+    return await this._postService.shareToChat(user, payload);
   }
 }
