@@ -1,4 +1,4 @@
-import { compare, genSalt, hash } from 'bcrypt';
+import { compare, genSalt, hash } from 'bcryptjs';
 import { v4 as uuid } from 'uuid';
 
 interface hashPasswordProps {

@@ -20,7 +20,7 @@ import { APIResponseDTO } from 'src/core/response/response.schema';
 import DatabaseService from 'src/database/database.service';
 import { UtilityService } from 'src/util/utility.service';
 import { NotificationService } from '../notification/notification.service';
-import { KafkaService } from '../kafka/kafka.service';
+// import { KafkaService } from '../kafka/kafka.service';
 
 @Injectable()
 export class PostService {
@@ -28,7 +28,7 @@ export class PostService {
     private _dbService: DatabaseService,
     private readonly _util: UtilityService,
     private readonly _notification: NotificationService,
-    private readonly _kafka: KafkaService,
+    // private readonly _kafka: KafkaService,
   ) {}
 
   async create(user: User, payload: CreatePostDto): Promise<APIResponseDTO> {
