@@ -1,12 +1,10 @@
-// media.service.ts
 import {
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { drive_v3, google } from 'googleapis';
-import { auth, GoogleAuth } from 'google-auth-library';
-import * as path from 'path';
+import { GoogleAuth } from 'google-auth-library';
 import { APIResponseDTO } from 'src/core/response/response.schema';
 import { Readable } from 'node:stream';
 import DatabaseService from 'src/database/database.service';
@@ -19,8 +17,16 @@ export class MediaService {
   private auth: any;
   constructor(private _dbService: DatabaseService) {
     this.auth = new GoogleAuth({
-      keyFile: path.join(__dirname, '../../../drive_service_account.json'),
+      // keyFile: path.join(__dirname, '../../../drive_service_account.json'),
       scopes: ['https://www.googleapis.com/auth/drive.file'],
+      credentials: {
+        type: process.env.DRIVE_TYPE,
+        project_id: process.env.DRIVE_PROJECT_ID,
+        private_key_id: process.env.DRIVE_PRIVATE_KEY_ID,
+        private_key: process.env.DRIVE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        client_email: process.env.DRIVE_CLIENT_EMAIL,
+        client_id: process.env.DRIVE_CLIENT_ID,
+      },
     });
   }
 
